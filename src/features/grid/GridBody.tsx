@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { levelStyle } from '../../domain/styles';
 import { ancestors } from '../../domain/tree';
 import { assignPerson, levelLabel, moveItem, select } from '../../store/actions';
 import type { DisplayModel, DisplayRow } from '../../store/analysis';
@@ -141,6 +142,7 @@ export function GridBody({ model, layout, rowsFrom, rowsTo, height }: GridBodyPr
             layout={layout}
             people={people}
             levelLabel={levelLabel(doc, row.depth)}
+            levelColor={levelStyle(doc.project, row.depth).color}
             breadcrumb={
               personMode
                 ? ancestors(doc.items, row.id)

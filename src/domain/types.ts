@@ -6,6 +6,16 @@ export type ItemStatus = 'open' | 'active' | 'done';
 export type Side = 'start' | 'end';
 export type ScheduleMode = 'push' | 'keepGap';
 
+export type BarFill = 'solid' | 'soft' | 'outline' | 'striped';
+export type LabelPosition = 'right' | 'inside' | 'none';
+
+/** Visual style of a bar. Levels define the global style; items may carry their own copy. */
+export interface BarStyle {
+  color?: string;
+  fill?: BarFill;
+  label?: LabelPosition;
+}
+
 export interface CalendarSettings {
   /** Weekdays that are working days, 0 = Sunday … 6 = Saturday. */
   workdays: number[];
@@ -18,6 +28,8 @@ export interface ProjectMeta {
   startDate: ISODate;
   /** Global name per hierarchy depth (index 0 = top level). Deeper levels fall back to "Level n". */
   levelNames: string[];
+  /** Global bar style per hierarchy depth; missing entries use the default palette. */
+  levelStyles: BarStyle[];
   calendar: CalendarSettings;
   scheduleMode: ScheduleMode;
   createdAt: string;
@@ -38,7 +50,8 @@ export interface Item {
   assigneeIds: string[];
   progress: number;
   status: ItemStatus;
-  color?: string;
+  /** Individual style; when set the item no longer follows its level style. */
+  style?: BarStyle;
   notes?: string;
   collapsed?: boolean;
   updatedAt: string;

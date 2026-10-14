@@ -1,20 +1,29 @@
 import { dayFromParts, isoWeek, mondayOf, parts } from '../../domain/dates';
-import type { Zoom } from '../../store/projectStore';
+import type { FixedZoom } from '../../store/projectStore';
 import { formatDay } from '../common/format';
 
 export const ROW_H = 34;
 export const HEADER_H = 52;
 export const TIER_H = HEADER_H / 2;
 
-export const PX_PER_DAY: Record<Zoom, number> = {
+export const PX_PER_DAY: Record<FixedZoom, number> = {
   day: 34,
   week: 15,
   month: 4.2,
   quarter: 1.5,
 };
 
+/** Header granularity that fits a given day width (used for custom ranges). */
+export function tierFor(ppd: number): FixedZoom {
+  if (ppd >= 22) return 'day';
+  if (ppd >= 7) return 'week';
+  if (ppd >= 2.4) return 'month';
+  return 'quarter';
+}
+
 export interface Scale {
-  zoom: Zoom;
+  /** Header granularity. */
+  zoom: FixedZoom;
   ppd: number;
   /** First rendered day. */
   origin: number;
@@ -25,8 +34,12 @@ export interface Scale {
 }
 
 /** Timeline covering `[minDay, maxDay]` with generous padding, aligned to month starts. */
-export function makeScale(zoom: Zoom, minDay: number, maxDay: number): Scale {
-  const ppd = PX_PER_DAY[zoom];
+export function makeScale(
+  zoom: FixedZoom,
+  minDay: number,
+  maxDay: number,
+  ppd: number = PX_PER_DAY[zoom],
+): Scale {
   const padBefore = zoom === 'day' ? 21 : zoom === 'week' ? 45 : 120;
   const padAfter = zoom === 'day' ? 60 : zoom === 'week' ? 150 : 400;
   const { year, month } = parts(minDay - padBefore);
@@ -66,7 +79,7 @@ export function unitNext(unit: Unit, start: number): number {
   return dayFromParts(year + 1, 0, 1);
 }
 
-export const TIERS: Record<Zoom, [Unit, Unit]> = {
+export const TIERS: Record<FixedZoom, [Unit, Unit]> = {
   day: ['week', 'day'],
   week: ['month', 'week'],
   month: ['year', 'month'],

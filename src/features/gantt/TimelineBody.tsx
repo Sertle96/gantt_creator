@@ -1,7 +1,8 @@
 import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toDay, todayISO } from '../../domain/dates';
-import type { Dependency, Item, Side } from '../../domain/types';
+import { hasOwnStyle, resolveStyle } from '../../domain/styles';
+import type { BarFill, Dependency, Item, LabelPosition, Side } from '../../domain/types';
 import {
   addDependency,
   assignPerson,
@@ -16,8 +17,9 @@ import type { DisplayModel } from '../../store/analysis';
 import { useStore } from '../../store/projectStore';
 import { hasPerson, PERSON_MIME } from '../common/personDrag';
 import { DependencyLayer } from './DependencyLayer';
-import { barGeom, itemColor, MILESTONE_R, type BarGeom } from './geometry';
+import { barGeom, MILESTONE_R, type BarGeom } from './geometry';
 import { LinkPopover } from './LinkPopover';
+import { StylePopover } from './StylePopover';
 import { ROW_H, TIERS, ticks, type Scale } from './scale';
 
 interface TimelineBodyProps {
@@ -60,6 +62,7 @@ export function TimelineBody({
   const view = useStore((s) => s.ui.view);
   const [linking, setLinking] = useState<LinkDrag | null>(null);
   const [dropRow, setDropRow] = useState<number | null>(null);
+  const [styleMenu, setStyleMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [depMenu, setDepMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const { doc, analysis, rows, rowIndex, person } = model;
@@ -223,6 +226,23 @@ export function TimelineBody({
   const selectedRow = selectedId ? rowIndex.get(selectedId) : undefined;
   const ownColor = person && view.mode === 'person' ? doc.people[view.personId]?.color : undefined;
 
+  const bars = visible.flatMap((row) => {
+    const item = doc.items[row.id];
+    const g = geom(row.id);
+    if (!item || !g) return [];
+    const style = resolveStyle(doc.project, item, analysis.depth.get(row.id) ?? 0);
+    const isContext = row.role === 'context';
+    if (isContext) style.color = '#94a3b8';
+    else if (critical?.items.has(row.id)) style.color = 'var(--critical)';
+    else if (ownColor && row.role === 'own' && !hasOwnStyle(item)) style.color = ownColor;
+    else if (g.shape === 'deadline' && !hasOwnStyle(item)) style.color = 'var(--critical)';
+    const dim = !!(critical && !critical.items.has(row.id)) || isContext;
+    return [{ row, item, g, style, dim }];
+  });
+  const stripeColors = [
+    ...new Set(bars.filter((b) => b.style.fill === 'striped').map((b) => b.style.color)),
+  ];
+
   return (
     <>
       <svg
@@ -231,7 +251,14 @@ export function TimelineBody({
         height={height}
         className={`block select-none ${linking ? 'linking' : ''}`}
         onPointerDown={onPointerDown}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const bar = (e.target as Element).closest('[data-bar-id]');
+          if (!bar) return;
+          const id = bar.getAttribute('data-bar-id')!;
+          select(id);
+          setStyleMenu({ id, x: e.clientX, y: e.clientY });
+        }}
         onDragOver={(e) => {
           if (!hasPerson(e)) return;
           e.preventDefault();
@@ -268,6 +295,19 @@ export function TimelineBody({
                 style={{ fill: k === 'accent' ? 'rgb(var(--accent))' : `var(--${k})` }}
               />
             </marker>
+          ))}
+          {stripeColors.map((c) => (
+            <pattern
+              key={c}
+              id={stripeId(c)}
+              width={7}
+              height={7}
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(45)"
+            >
+              <rect width={7} height={7} fill={c} fillOpacity={0.22} />
+              <rect width={3} height={7} fill={c} />
+            </pattern>
           ))}
         </defs>
 
@@ -343,33 +383,20 @@ export function TimelineBody({
           part="lines"
         />
 
-        {visible.map((row) => {
-          const item = doc.items[row.id];
-          const g = geom(row.id);
-          if (!item || !g) return null;
-          const isContext = row.role === 'context';
-          const dim = (critical && !critical.items.has(row.id)) || isContext;
-          return (
-            <BarView
-              key={row.id}
-              item={item}
-              g={g}
-              color={
-                isContext
-                  ? '#94a3b8'
-                  : critical?.items.has(row.id)
-                    ? 'var(--critical)'
-                    : ((ownColor && row.role === 'own' ? ownColor : undefined) ??
-                      itemColor(doc, row.id) ??
-                      '')
-              }
-              dim={!!dim}
-              selected={row.id === selectedId}
-              linkTarget={linking?.targetId === row.id}
-              overrun={analysis.overruns.get(row.id) ?? 0}
-            />
-          );
-        })}
+        {bars.map(({ row, item, g, style, dim }) => (
+          <BarView
+            key={row.id}
+            item={item}
+            g={g}
+            color={style.color}
+            fill={style.fill}
+            labelPos={style.label}
+            dim={dim}
+            selected={row.id === selectedId}
+            linkTarget={linking?.targetId === row.id}
+            overrun={analysis.overruns.get(row.id) ?? 0}
+          />
+        ))}
 
         <DependencyLayer
           model={model}
@@ -411,6 +438,14 @@ export function TimelineBody({
           </g>
         )}
       </svg>
+      {styleMenu && doc.items[styleMenu.id] && (
+        <StylePopover
+          itemId={styleMenu.id}
+          x={styleMenu.x}
+          y={styleMenu.y}
+          onClose={() => setStyleMenu(null)}
+        />
+      )}
       {depMenu && doc.dependencies[depMenu.id] && (
         <LinkPopover
           dep={doc.dependencies[depMenu.id]}
@@ -427,62 +462,82 @@ interface BarViewProps {
   item: Item;
   g: BarGeom;
   color: string;
+  fill: BarFill;
+  labelPos: LabelPosition;
   dim: boolean;
   selected: boolean;
   linkTarget: boolean;
   overrun: number;
 }
 
+const stripeId = (color: string) => `stripes-${color.replace(/[^a-z0-9]/gi, '')}`;
+
+function paint(fill: BarFill, color: string) {
+  switch (fill) {
+    case 'soft':
+      return { fill: color, fillOpacity: 0.28, stroke: color, strokeWidth: 1.25 };
+    case 'outline':
+      return { fill: 'rgb(var(--surface))', fillOpacity: 1, stroke: color, strokeWidth: 1.75 };
+    case 'striped':
+      return { fill: `url(#${stripeId(color)})`, fillOpacity: 1, stroke: color, strokeWidth: 1.25 };
+    default:
+      return { fill: color, fillOpacity: 1, stroke: 'none', strokeWidth: 0 };
+  }
+}
+
+const CHAR_W = 6.4;
+
 const BarView = memo(function BarView({
   item,
   g,
   color,
+  fill,
+  labelPos,
   dim,
   selected,
   linkTarget,
   overrun,
 }: BarViewProps) {
   const { t } = useTranslation();
-  const opacity = dim ? 0.4 : 1;
-  const stroke = selected ? 'rgb(var(--accent))' : linkTarget ? 'rgb(var(--accent))' : 'none';
-  const label = (x: number, extra?: string, tone?: string) => (
-    <text x={x} y={g.y + 4} fontSize={11.5} fill={tone ?? 'rgb(var(--muted))'} pointerEvents="none">
-      {item.name}
-      {extra && <tspan fill="var(--critical)" fontWeight={600}>{`  ${extra}`}</tspan>}
-    </text>
-  );
-  const handles = (
-    <>
-      <circle
-        className="link-handle"
-        data-link-side="start"
-        cx={g.ax1 - 8}
-        cy={g.y}
-        r={4.5}
-        fill="rgb(var(--surface))"
-        stroke="rgb(var(--accent))"
-        strokeWidth={1.5}
-        style={{ cursor: 'crosshair' }}
-      />
-      <circle
-        className="link-handle"
-        data-link-side="end"
-        cx={g.ax2 + 8}
-        cy={g.y}
-        r={4.5}
-        fill="rgb(var(--surface))"
-        stroke="rgb(var(--accent))"
-        strokeWidth={1.5}
-        style={{ cursor: 'crosshair' }}
-      />
-    </>
-  );
-  const groupClass = `bar-group ${linkTarget ? 'is-link-target' : ''}`;
+  const highlight = selected || linkTarget;
+  const p = paint(fill, color);
+  const extra = overrun ? `−${t('common.workdays', { count: overrun })}` : undefined;
+
+  const outside = (x: number, tone = 'rgb(var(--muted))') =>
+    labelPos === 'none' && !extra ? null : (
+      <text x={x} y={g.y + 4} fontSize={11.5} fill={tone} pointerEvents="none">
+        {labelPos !== 'none' && item.name}
+        {extra && <tspan fill="var(--critical)" fontWeight={600}>{`  ${extra}`}</tspan>}
+      </text>
+    );
+  const handles = (['start', 'end'] as const).map((side) => (
+    <circle
+      key={side}
+      className="link-handle"
+      data-link-side={side}
+      cx={side === 'start' ? g.ax1 - 8 : g.ax2 + 8}
+      cy={g.y}
+      r={4.5}
+      fill="rgb(var(--surface))"
+      stroke="rgb(var(--accent))"
+      strokeWidth={1.5}
+      style={{ cursor: 'crosshair' }}
+    />
+  ));
+  const groupProps = {
+    className: `bar-group ${linkTarget ? 'is-link-target' : ''}`,
+    'data-bar-id': item.id,
+    opacity: dim ? 0.4 : 1,
+    style: { cursor: 'grab' },
+  };
+  const ring = { fill: 'none', stroke: 'rgb(var(--accent))', strokeWidth: 2 };
 
   if (g.shape === 'milestone') {
     const r = MILESTONE_R;
+    const diamond = (k: number) =>
+      `M${g.x1},${g.y - k}L${g.x1 + k},${g.y}L${g.x1},${g.y + k}L${g.x1 - k},${g.y}Z`;
     return (
-      <g className={groupClass} data-bar-id={item.id} opacity={opacity} style={{ cursor: 'grab' }}>
+      <g {...groupProps}>
         <rect
           x={g.x1 - r - 4}
           y={g.y - r - 4}
@@ -490,14 +545,10 @@ const BarView = memo(function BarView({
           height={2 * r + 8}
           fill="transparent"
         />
-        <path
-          d={`M${g.x1},${g.y - r}L${g.x1 + r},${g.y}L${g.x1},${g.y + r}L${g.x1 - r},${g.y}Z`}
-          fill={color || 'var(--bar-summary)'}
-          stroke={stroke}
-          strokeWidth={2}
-        />
+        {highlight && <path d={diamond(r + 3)} {...ring} />}
+        <path d={diamond(r)} {...p} strokeWidth={fill === 'solid' ? 0 : 1.5} />
         {handles}
-        {label(g.x2 + 18)}
+        {outside(g.x2 + 18)}
       </g>
     );
   }
@@ -505,17 +556,13 @@ const BarView = memo(function BarView({
   if (g.shape === 'deadline') {
     const top = g.y - 11;
     return (
-      <g className={groupClass} data-bar-id={item.id} opacity={opacity} style={{ cursor: 'grab' }}>
+      <g {...groupProps}>
         <rect x={g.x1 - 6} y={top - 2} width={20} height={26} fill="transparent" />
-        <line x1={g.x1} x2={g.x1} y1={top} y2={g.y + 11} stroke="var(--critical)" strokeWidth={2} />
-        <path
-          d={`M${g.x1},${top}L${g.x1 + 11},${top + 4}L${g.x1},${top + 8}Z`}
-          fill="var(--critical)"
-          stroke={stroke}
-          strokeWidth={1.5}
-        />
+        {highlight && <rect x={g.x1 - 4} y={top - 3} width={19} height={28} rx={3} {...ring} />}
+        <line x1={g.x1} x2={g.x1} y1={top} y2={g.y + 11} stroke={color} strokeWidth={2} />
+        <path d={`M${g.x1},${top}L${g.x1 + 11},${top + 4}L${g.x1},${top + 8}Z`} {...p} />
         {handles}
-        {label(g.x1 + 18, overrun ? `−${t('common.workdays', { count: overrun })}` : undefined)}
+        {outside(g.x1 + 18)}
       </g>
     );
   }
@@ -524,42 +571,27 @@ const BarView = memo(function BarView({
   if (g.shape === 'summary') {
     const y = g.y - 5;
     return (
-      <g className={groupClass} data-bar-id={item.id} opacity={opacity} style={{ cursor: 'grab' }}>
+      <g {...groupProps}>
         <rect x={g.x1} y={g.y - 9} width={w} height={18} fill="transparent" />
-        <rect
-          x={g.x1}
-          y={y}
-          width={w}
-          height={8}
-          rx={1.5}
-          fill={color || 'var(--bar-summary)'}
-          stroke={stroke}
-          strokeWidth={2}
-        />
-        <path
-          d={`M${g.x1},${y + 8}l0,6l6,-6z M${g.x2},${y + 8}l0,6l-6,-6z`}
-          fill={color || 'var(--bar-summary)'}
-        />
+        {highlight && <rect x={g.x1 - 3} y={y - 3} width={w + 6} height={14} rx={3} {...ring} />}
+        <rect x={g.x1} y={y} width={w} height={8} rx={1.5} {...p} />
+        <path d={`M${g.x1},${y + 8}l0,6l6,-6z M${g.x2},${y + 8}l0,6l-6,-6z`} fill={color} />
         {handles}
-        {label(g.x2 + 18, undefined, 'rgb(var(--text))')}
+        {outside(g.x2 + 18, 'rgb(var(--text))')}
       </g>
     );
   }
 
-  const fill = color || 'var(--bar)';
   const progressW = (w * Math.max(0, Math.min(100, item.progress))) / 100;
+  const maxChars = Math.floor((w - 12) / CHAR_W);
+  const inside = labelPos === 'inside' && maxChars >= 3;
+  const insideText =
+    item.name.length > maxChars ? `${item.name.slice(0, Math.max(1, maxChars - 1))}…` : item.name;
+  const onBar = fill === 'solid' ? 'white' : 'rgb(var(--text))';
   return (
-    <g className={groupClass} data-bar-id={item.id} opacity={opacity} style={{ cursor: 'grab' }}>
-      <rect
-        x={g.x1}
-        y={g.y - 9}
-        width={w}
-        height={18}
-        rx={4}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={2}
-      />
+    <g {...groupProps}>
+      {highlight && <rect x={g.x1 - 3} y={g.y - 12} width={w + 6} height={24} rx={6} {...ring} />}
+      <rect x={g.x1} y={g.y - 9} width={w} height={18} rx={4} {...p} />
       {progressW > 0 && (
         <rect
           x={g.x1}
@@ -567,19 +599,31 @@ const BarView = memo(function BarView({
           width={progressW}
           height={18}
           rx={4}
-          fill="black"
-          fillOpacity={0.22}
+          fill={fill === 'solid' ? 'black' : color}
+          fillOpacity={fill === 'solid' ? 0.22 : 0.35}
           pointerEvents="none"
         />
       )}
-      {item.status === 'done' && (
+      {item.status === 'done' && !inside && (
         <path
           d={`M${g.x1 + 6},${g.y}l3,3l6,-6`}
-          stroke="white"
+          stroke={onBar}
           strokeWidth={2}
           fill="none"
           pointerEvents="none"
         />
+      )}
+      {inside && (
+        <text
+          x={g.x1 + 6}
+          y={g.y + 4}
+          fontSize={11.5}
+          fontWeight={500}
+          fill={onBar}
+          pointerEvents="none"
+        >
+          {insideText}
+        </text>
       )}
       {w >= 14 && (
         <>
@@ -604,7 +648,7 @@ const BarView = memo(function BarView({
         </>
       )}
       {handles}
-      {label(g.x2 + 18)}
+      {(!inside || extra) && outside(g.x2 + 18)}
     </g>
   );
 });

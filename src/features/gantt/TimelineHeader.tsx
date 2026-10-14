@@ -8,9 +8,11 @@ interface TimelineHeaderProps {
   cal: WorkCalendar;
   fromX: number;
   toX: number;
+  /** Left edge of the visible timeline, used to keep top labels readable while scrolling. */
+  visibleX: number;
 }
 
-export function TimelineHeader({ scale, cal, fromX, toX }: TimelineHeaderProps) {
+export function TimelineHeader({ scale, cal, fromX, toX, visibleX }: TimelineHeaderProps) {
   const { t } = useTranslation();
   const [topUnit, bottomUnit] = TIERS[scale.zoom];
   const weekLabel = (w: number) => t('person.week', { week: w });
@@ -27,7 +29,10 @@ export function TimelineHeader({ scale, cal, fromX, toX }: TimelineHeaderProps) 
         <g key={`t${tick.day}`}>
           <line x1={tick.x} x2={tick.x} y1={0} y2={TIER_H} stroke="var(--grid-line)" />
           <text
-            x={Math.max(tick.x, fromX) + 6}
+            x={Math.min(
+              Math.max(tick.x, visibleX) + 6,
+              tick.x + tick.w - tick.label.length * 7 - 6,
+            )}
             y={TIER_H / 2 + 4}
             fontSize={11.5}
             fontWeight={600}

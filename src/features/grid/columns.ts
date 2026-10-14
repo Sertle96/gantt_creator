@@ -8,9 +8,9 @@ export type ColKey = 'wbs' | 'start' | 'end' | 'duration' | 'people';
 
 export const COL_WIDTH: Record<ColKey, number> = {
   wbs: 58,
-  start: 84,
-  end: 84,
-  duration: 62,
+  start: 100,
+  end: 100,
+  duration: 66,
   people: 78,
 };
 
@@ -40,18 +40,4 @@ export function layoutColumns(gridWidth: number): ColumnLayout {
     (chosen.has('wbs') ? COL_WIDTH.wbs : 0) +
     right.reduce((s, k) => s + COL_WIDTH[k], 0);
   return { showWbs: chosen.has('wbs'), nameWidth: gridWidth - used, right };
-}
-
-export const LEVEL_COLORS = [
-  '#6366f1',
-  '#0ea5e9',
-  '#14b8a6',
-  '#f59e0b',
-  '#ec4899',
-  '#8b5cf6',
-  '#64748b',
-];
-
-export function levelColor(depth: number): string {
-  return LEVEL_COLORS[depth % LEVEL_COLORS.length];
 }

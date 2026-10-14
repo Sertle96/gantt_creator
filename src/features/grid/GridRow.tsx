@@ -15,10 +15,12 @@ import {
 } from '../../store/actions';
 import type { DisplayRow } from '../../store/analysis';
 import { useStore } from '../../store/projectStore';
-import { AvatarStack } from '../common/Avatar';
 import { formatISO } from '../common/format';
 import { ROW_H } from '../gantt/scale';
-import { COL_WIDTH, HANDLE_W, INDENT, levelColor, type ColumnLayout } from './columns';
+import { PeopleCell } from '../people/PeoplePicker';
+import { COL_WIDTH, HANDLE_W, INDENT, type ColumnLayout } from './columns';
+
+const FULL_DATE = { day: '2-digit', month: '2-digit', year: 'numeric' } as const;
 
 export interface GridRowProps {
   row: DisplayRow;
@@ -27,6 +29,7 @@ export interface GridRowProps {
   layout: ColumnLayout;
   people: Person[];
   levelLabel: string;
+  levelColor: string;
   breadcrumb: string;
   workdays: number;
   selected: boolean;
@@ -120,7 +123,7 @@ export const GridRow = memo(function GridRow(props: GridRowProps) {
           <span
             className="max-w-[76px] shrink-0 truncate rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide"
             title={props.levelLabel}
-            style={{ color: levelColor(depth), background: `${levelColor(depth)}1a` }}
+            style={{ color: props.levelColor, background: `${props.levelColor}1a` }}
           >
             {props.levelLabel}
           </span>
@@ -146,6 +149,7 @@ export const GridRow = memo(function GridRow(props: GridRowProps) {
             <DateCell
               key={key}
               width={w}
+              label={`${item.name}: ${t('grid.start')}`}
               value={isPoint ? '' : item.start}
               disabled={item.kind === 'deadline' && !isParent}
               onCommit={(v) => setItemDate(item.id, 'start', v)}
@@ -157,6 +161,7 @@ export const GridRow = memo(function GridRow(props: GridRowProps) {
             <DateCell
               key={key}
               width={w}
+              label={`${item.name}: ${t('grid.end')}`}
               value={item.end}
               disabled={isParent}
               danger={props.overrun > 0}
@@ -169,17 +174,14 @@ export const GridRow = memo(function GridRow(props: GridRowProps) {
             <DurationCell
               key={key}
               width={w}
+              label={`${item.name}: ${t('grid.duration')}`}
               value={isPoint ? 0 : props.workdays}
               editable={!isParent && item.kind !== 'deadline'}
               onCommit={(v) => setDuration(item.id, v)}
             />
           );
         }
-        return (
-          <div key={key} className="flex items-center px-1.5" style={{ width: w }}>
-            {props.people.length > 0 && <AvatarStack people={props.people} size={20} />}
-          </div>
-        );
+        return <PeopleCell key={key} width={w} item={item} people={props.people} />;
       })}
     </div>
   );
@@ -230,47 +232,51 @@ interface DateCellProps {
   value: string;
   disabled?: boolean;
   danger?: boolean;
+  label: string;
   onCommit: (value: string) => void;
 }
 
-function DateCell({ width, value, disabled, danger, onCommit }: DateCellProps) {
-  const [editing, setEditing] = useState(false);
-  if (editing) {
+const cellInput =
+  'h-[26px] w-full rounded border border-transparent bg-transparent px-1 text-[12px] tabular-nums outline-none hover:border-border focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/20';
+
+/** Plausible complete date (typing a year digit by digit passes through e.g. 0002-…). */
+const isComplete = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number(v.slice(0, 4)) >= 1900;
+
+/** Always-editable date field, committed when a complete date is entered or picked. */
+function DateCell({ width, value, disabled, danger, label, onCommit }: DateCellProps) {
+  if (disabled) {
     return (
-      <div className="px-1" style={{ width }}>
-        <input
-          type="date"
-          autoFocus
-          defaultValue={value}
-          className="h-6 w-full rounded border border-accent bg-surface px-1 text-[12px] outline-none"
-          onBlur={(e) => {
-            setEditing(false);
-            if (e.target.value !== value) onCommit(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setEditing(false);
-          }}
-        />
+      <div className="truncate px-2 text-[12px] tabular-nums text-muted" style={{ width }}>
+        {value ? formatISO(value, FULL_DATE) : '–'}
       </div>
     );
   }
+  const commit = (v: string) => {
+    if (v !== value && (v === '' || isComplete(v))) onCommit(v);
+  };
   return (
-    <button
-      tabIndex={-1}
-      disabled={disabled}
-      className={`h-full truncate px-1.5 text-left text-[12px] tabular-nums ${
-        danger ? 'font-semibold text-danger' : 'text-text/85'
-      } ${disabled ? '' : 'hover:text-accent'}`}
-      style={{ width }}
-      onClick={(e) => {
-        e.stopPropagation();
-        setEditing(true);
-      }}
-    >
-      {value ? formatISO(value) : <span className="text-muted/60">–</span>}
-    </button>
+    <div className="px-0.5" style={{ width }}>
+      <input
+        key={value}
+        type="date"
+        aria-label={label}
+        defaultValue={value}
+        className={`${cellInput} date-cell ${danger ? 'font-semibold text-danger' : ''} ${
+          value ? '' : 'is-empty'
+        }`}
+        onChange={(e) => isComplete(e.target.value) && commit(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          const input = e.target as HTMLInputElement;
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') {
+            input.value = value;
+            input.blur();
+          }
+        }}
+      />
+    </div>
   );
 }
 
@@ -278,47 +284,45 @@ interface DurationCellProps {
   width: number;
   value: number;
   editable: boolean;
+  label: string;
   onCommit: (value: number) => void;
 }
 
-function DurationCell({ width, value, editable, onCommit }: DurationCellProps) {
+/** Always-editable working-day count; 0 turns a task into a milestone. */
+function DurationCell({ width, value, editable, label, onCommit }: DurationCellProps) {
   const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  if (editing) {
+  if (!editable) {
     return (
-      <div className="px-1" style={{ width }}>
-        <input
-          type="number"
-          min={0}
-          autoFocus
-          defaultValue={value}
-          className="h-6 w-full rounded border border-accent bg-surface px-1 text-[12px] outline-none"
-          onBlur={(e) => {
-            setEditing(false);
-            const v = Math.round(Number(e.target.value));
-            if (e.target.value !== '' && v !== value) onCommit(v);
-          }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setEditing(false);
-          }}
-        />
+      <div className="truncate px-2 text-[12px] tabular-nums text-muted" style={{ width }}>
+        {value ? t('common.workdays', { count: value }) : '–'}
       </div>
     );
   }
+  const commit = (raw: string) => {
+    const v = Math.round(Number(raw));
+    if (raw !== '' && Number.isFinite(v) && v !== value) onCommit(v);
+  };
   return (
-    <button
-      tabIndex={-1}
-      disabled={!editable}
-      className={`h-full px-1.5 text-left text-[12px] tabular-nums text-text/85 ${editable ? 'hover:text-accent' : ''}`}
-      style={{ width }}
-      onClick={(e) => {
-        e.stopPropagation();
-        setEditing(true);
-      }}
-    >
-      {value ? t('common.workdays', { count: value }) : <span className="text-muted/60">–</span>}
-    </button>
+    <div className="flex items-center px-0.5" style={{ width }}>
+      <input
+        key={value}
+        type="number"
+        min={0}
+        aria-label={label}
+        defaultValue={value}
+        className={`${cellInput} text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          const input = e.target as HTMLInputElement;
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') {
+            input.value = String(value);
+            input.blur();
+          }
+        }}
+      />
+      <span className="pl-0.5 pr-1 text-[11px] text-muted">{t('common.wdUnit')}</span>
+    </div>
   );
 }

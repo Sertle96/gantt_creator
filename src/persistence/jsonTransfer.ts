@@ -1,5 +1,14 @@
 import { isValidISO, todayISO } from '../domain/dates';
-import type { Dependency, Item, Person, ProjectDoc } from '../domain/types';
+import { BAR_FILLS, LABEL_POSITIONS } from '../domain/styles';
+import type {
+  BarFill,
+  BarStyle,
+  Dependency,
+  Item,
+  LabelPosition,
+  Person,
+  ProjectDoc,
+} from '../domain/types';
 
 export class ImportError extends Error {}
 
@@ -10,6 +19,16 @@ const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : 
 const num = (v: unknown, fallback = 0): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 const date = (v: unknown, fallback: string): string => (isValidISO(v) ? v : fallback);
+const COLOR = /^#[0-9a-f]{6}$/i;
+
+function parseStyle(v: unknown): BarStyle | undefined {
+  if (!isObject(v)) return undefined;
+  const style: BarStyle = {};
+  if (typeof v.color === 'string' && COLOR.test(v.color)) style.color = v.color;
+  if (BAR_FILLS.includes(v.fill as BarFill)) style.fill = v.fill as BarFill;
+  if (LABEL_POSITIONS.includes(v.label as LabelPosition)) style.label = v.label as LabelPosition;
+  return Object.keys(style).length ? style : undefined;
+}
 
 /**
  * Validates and normalises a stored or imported document. Unknown fields are kept so newer
@@ -29,8 +48,12 @@ export function parseProjectDoc(input: unknown): ProjectDoc {
     if (!isObject(raw)) continue;
     const start = date(raw.start, today);
     const kind = raw.kind === 'milestone' || raw.kind === 'deadline' ? raw.kind : 'task';
+    // Older files stored a plain `color`; it becomes an individual style.
+    const { color: legacyColor, ...rest } = raw;
+    const style = parseStyle(raw.style) ?? parseStyle({ color: legacyColor });
     items[key] = {
-      ...raw,
+      ...rest,
+      style,
       id: key,
       parentId: typeof raw.parentId === 'string' ? raw.parentId : null,
       order: str(raw.order, 'a0'),
@@ -93,6 +116,9 @@ export function parseProjectDoc(input: unknown): ProjectDoc {
       name: str(p.name, 'Projekt'),
       startDate: date(p.startDate, today),
       levelNames: Array.isArray(p.levelNames) ? p.levelNames.map((n) => str(n)) : [],
+      levelStyles: Array.isArray(p.levelStyles)
+        ? p.levelStyles.map((s) => parseStyle(s) ?? {})
+        : [],
       calendar: {
         ...calendar,
         workdays: Array.isArray(calendar.workdays)

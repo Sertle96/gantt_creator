@@ -25,12 +25,13 @@ import {
   undo,
   useStore,
   type Theme,
-  type Zoom,
+  type FixedZoom,
 } from '../../store/projectStore';
 import { ProjectMenu } from './ProjectMenu';
+import { RangePicker } from './RangePicker';
 
-const ZOOMS: Zoom[] = ['day', 'week', 'month', 'quarter'];
-const ZOOM_KEYS: Record<Zoom, string> = {
+const ZOOMS: FixedZoom[] = ['day', 'week', 'month', 'quarter'];
+const ZOOM_KEYS: Record<FixedZoom, string> = {
   day: 'toolbar.zoomDay',
   week: 'toolbar.zoomWeek',
   month: 'toolbar.zoomMonth',
@@ -135,6 +136,7 @@ export function Toolbar() {
           </button>
         ))}
       </div>
+      <RangePicker />
       <button className="btn" onClick={() => requestScroll(toDay(todayISO()))}>
         {t('toolbar.today')}
       </button>

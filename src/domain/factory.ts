@@ -45,6 +45,7 @@ export function createProject(
     name,
     startDate,
     levelNames,
+    levelStyles: [],
     calendar: { workdays: [1, 2, 3, 4, 5], holidays: [] },
     scheduleMode: 'push',
     createdAt: now,

@@ -88,6 +88,21 @@ input[type='date']::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* Grid date cells look like table text until hovered or focused. */
+.date-cell::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.date-cell:hover::-webkit-calendar-picker-indicator,
+.date-cell:focus::-webkit-calendar-picker-indicator {
+  display: block;
+  margin-left: 0;
+}
+
+.date-cell.is-empty:not(:focus):not(:hover)::-webkit-datetime-edit {
+  color: transparent;
+}
+
 /* Thin scrollbars that fit both themes */
 .scroll-thin {
   scrollbar-width: thin;

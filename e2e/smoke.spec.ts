@@ -3,18 +3,17 @@ import { readFile } from 'node:fs/promises';
 
 const rows = (page: Page) => page.locator('[data-row-id]');
 const row = (page: Page, name: string) => rows(page).filter({ hasText: name }).first();
+/** Clicks the name of a row (cells hold editable inputs). */
+const selectRow = (page: Page, name: string) =>
+  row(page, name).getByText(name, { exact: false }).first().click();
 const bar = (page: Page, name: string) => page.locator('g.bar-group', { hasText: name }).first();
 
-/** `dd.mm.yy` from the grid → comparable number. */
-function dateValue(text: string): number {
-  const [d, m, y] = text.split('.').map(Number);
-  return (2000 + y) * 10_000 + m * 100 + d;
-}
-
-async function cellDates(page: Page, name: string): Promise<[number, number]> {
-  const text = await row(page, name).innerText();
-  const dates = text.match(/\d{2}\.\d{2}\.\d{2}/g) ?? [];
-  return [dateValue(dates[0]!), dateValue(dates[dates.length - 1]!)];
+/** ISO start / end from the editable grid cells (ISO strings compare chronologically). */
+async function cellDates(page: Page, name: string): Promise<[string, string]> {
+  return [
+    await page.getByLabel(`${name}: Start`, { exact: true }).inputValue(),
+    await page.getByLabel(`${name}: Ende`, { exact: true }).inputValue(),
+  ];
 }
 
 async function linkBars(page: Page, from: string, to: string) {
@@ -56,7 +55,7 @@ test('plan a project end to end', async ({ page }) => {
   await expect(row(page, 'Konzept')).toContainText('Etappe');
 
   // Second task next to "Interviews".
-  await row(page, 'Interviews').click();
+  await selectRow(page, 'Interviews');
   await page.keyboard.press('Enter');
   await page.keyboard.type('Workshop');
   await page.keyboard.press('Shift+Enter');
@@ -67,7 +66,7 @@ test('plan a project end to end', async ({ page }) => {
   await expect(page.locator('g.dep')).toHaveCount(1);
   const [, interviewsEnd] = await cellDates(page, 'Interviews');
   const [workshopStart] = await cellDates(page, 'Workshop');
-  expect(workshopStart).toBeGreaterThan(interviewsEnd);
+  expect(workshopStart > interviewsEnd).toBe(true);
 
   // Chain link toggles hard ↔ soft.
   await page.locator('g.dep-toggle').first().click();
@@ -86,9 +85,9 @@ test('plan a project end to end', async ({ page }) => {
   await page.getByTestId('side-panel').getByRole('button', { name: 'Person hinzufügen' }).click();
   await page
     .getByTestId('side-panel')
-    .getByTitle(/Personen auf eine Zeile/)
+    .getByTitle(/Avatar auf eine Zeile ziehen/)
     .first()
-    .dragTo(row(page, 'Workshop'));
+    .dragTo(row(page, 'Workshop').getByText('Workshop'));
   await expect(row(page, 'Workshop')).toContainText('EM');
 
   // Personal plan: own task plus the predecessor as greyed context.
@@ -123,7 +122,7 @@ test('undo and redo a bar move', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Beispielprojekt' }).click();
   await page.getByRole('button', { name: 'Tag', exact: true }).click();
-  await row(page, 'Stakeholder').click();
+  await selectRow(page, 'Stakeholder');
   const before = await cellDates(page, 'Sitemap');
 
   const box = (await bar(page, 'Stakeholder').locator('rect').first().boundingBox())!;
@@ -133,9 +132,69 @@ test('undo and redo a bar move', async ({ page }) => {
   await page.mouse.up();
 
   const after = await cellDates(page, 'Sitemap');
-  expect(after[0]).toBeGreaterThan(before[0]);
+  expect(after[0] > before[0]).toBe(true);
   await page.keyboard.press('Control+z');
   expect(await cellDates(page, 'Sitemap')).toEqual(before);
   await page.keyboard.press('Control+y');
   expect(await cellDates(page, 'Sitemap')).toEqual(after);
+});
+
+test('levels, table editing, people picker, bar style and period', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Beispielprojekt' }).click();
+
+  // Show only phases, then phases + workstreams, then everything.
+  await page.getByRole('button', { name: 'Phase', exact: true }).click();
+  await expect(rows(page)).toHaveCount(3);
+  await page.getByRole('button', { name: 'Workstream', exact: true }).click();
+  await expect(rows(page)).toHaveCount(11);
+  await page.getByRole('button', { name: 'Alle', exact: true }).click();
+  await expect(rows(page)).toHaveCount(22);
+
+  // Assign people from the cell dropdown, including a brand-new person.
+  await page.getByLabel('Sitemap: Personen zuordnen').click();
+  await page.getByRole('menuitemcheckbox', { name: /Anna Berger/ }).click();
+  await page.getByPlaceholder('Neue Person anlegen…').fill('Zoe Neu');
+  await page.getByPlaceholder('Neue Person anlegen…').press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Sitemap')).toContainText('AB');
+  await expect(row(page, 'Sitemap')).toContainText('ZN');
+
+  // Edit dates and duration directly in the table; successors follow.
+  await page.getByLabel('Sitemap: Ende', { exact: true }).fill('2026-10-21');
+  await expect(page.getByLabel('Navigation: Start', { exact: true })).toHaveValue('2026-10-22');
+  await page.getByLabel('Navigation: Dauer', { exact: true }).fill('4');
+  await page.getByLabel('Navigation: Dauer', { exact: true }).press('Enter');
+  await expect(page.getByLabel('Navigation: Ende', { exact: true })).toHaveValue('2026-10-27');
+
+  // Right-click a bar to give it an individual style, then reset it.
+  await bar(page, 'Wireframes').locator('rect').nth(1).click({ button: 'right' });
+  const popover = page.locator('.menu');
+  await expect(popover.getByText('Stil der Ebene „Bereich“')).toBeVisible();
+  await page.getByRole('button', { name: 'Schraffiert' }).click();
+  await expect(popover.getByText('Individueller Stil')).toBeVisible();
+  await expect(bar(page, 'Wireframes').locator('rect[fill^="url(#stripes"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Auf Ebenen-Stil zurücksetzen' }).click();
+  await expect(bar(page, 'Wireframes').locator('rect[fill^="url(#stripes"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // Level colour from the project settings applies to the level's bars.
+  await page.getByTitle('Einstellungen').click();
+  await page.getByLabel('Darstellung 2').click();
+  await page.getByRole('button', { name: '#db2777' }).click();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(bar(page, 'Analyse').locator('rect[fill="#db2777"]')).toHaveCount(1);
+
+  // Custom period fits the timeline.
+  await page.getByTitle('Zeitraum für die Ansicht wählen').click();
+  const periodMenu = page.locator('.menu');
+  await periodMenu.getByLabel('Von', { exact: true }).fill('2026-11-02');
+  await periodMenu.getByLabel('Bis', { exact: true }).fill('2026-11-29');
+  await page.getByRole('button', { name: 'Anzeigen' }).click();
+  await expect(page.getByTitle('Zeitraum für die Ansicht wählen')).toContainText('02.11.');
+  await expect(page.getByTitle('Zeitraum für die Ansicht wählen')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 });

@@ -1,19 +1,24 @@
-import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, RotateCcw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatDay } from '../common/format';
+import { levelStyle } from '../../domain/styles';
+import type { ProjectMeta } from '../../domain/types';
 import { currentLanguage, LANGUAGES, setLanguage } from '../../i18n';
 import {
+  moveLevel,
+  removeLastLevel,
   renameProject,
   setCalendar,
   setLevelNames,
+  setLevelStyle,
   setProjectStart,
   setScheduleMode,
 } from '../../store/actions';
 import { setUi, useStore } from '../../store/projectStore';
-import { formatISO, MEDIUM } from '../common/format';
+import { formatDay, formatISO, MEDIUM } from '../common/format';
 import { Modal } from '../common/Modal';
-import { levelColor } from '../grid/columns';
+import { Popover } from '../common/Popover';
+import { FillPreview, StyleEditor } from '../common/StyleEditor';
 
 // 1970-01-04 was a Sunday: day numbers 3..9 give Sunday..Saturday.
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -44,13 +49,6 @@ export function SettingsDialog() {
     const next = [...levels];
     while (next.length <= i) next.push('');
     next[i] = name;
-    setLevelNames(next);
-  };
-  const moveLevel = (i: number, dir: -1 | 1) => {
-    const next = [...levels];
-    const j = i + dir;
-    if (j < 0 || j >= next.length) return;
-    [next[i], next[j]] = [next[j], next[i]];
     setLevelNames(next);
   };
   const cal = project.calendar;
@@ -108,7 +106,10 @@ export function SettingsDialog() {
             >
               <span
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold"
-                style={{ color: levelColor(i), background: `${levelColor(i)}1a` }}
+                style={{
+                  color: levelStyle(project, i).color,
+                  background: `${levelStyle(project, i).color}1a`,
+                }}
               >
                 {i + 1}
               </span>
@@ -122,6 +123,7 @@ export function SettingsDialog() {
                 }
                 onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
               />
+              <LevelStyleButton project={project} depth={i} />
               <button
                 className="btn-icon h-7 w-7"
                 disabled={i === 0 || i >= levels.length}
@@ -139,7 +141,7 @@ export function SettingsDialog() {
               <button
                 className="btn-icon h-7 w-7 hover:text-danger"
                 disabled={i >= levels.length || i !== levels.length - 1}
-                onClick={() => setLevelNames(levels.slice(0, -1))}
+                onClick={removeLastLevel}
               >
                 <X size={13} />
               </button>
@@ -251,5 +253,44 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="mb-2 text-[13px] font-semibold">{title}</h3>
       {children}
     </section>
+  );
+}
+
+/** Preview of a level's bar style that opens the style editor for that level. */
+function LevelStyleButton({ project, depth }: { project: ProjectMeta; depth: number }) {
+  const { t } = useTranslation();
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const style = levelStyle(project, depth);
+  return (
+    <>
+      <button
+        className="flex h-7 shrink-0 items-center rounded-md border border-border px-2 hover:border-accent"
+        title={t('style.title')}
+        aria-label={`${t('style.title')} ${depth + 1}`}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAnchor(anchor ? null : { x: r.left - 120, y: r.bottom - 4 });
+        }}
+      >
+        <FillPreview fill={style.fill} color={style.color} width={46} />
+      </button>
+      {anchor && (
+        <Popover
+          x={anchor.x}
+          y={anchor.y}
+          onClose={() => setAnchor(null)}
+          className="w-[290px] p-3"
+        >
+          <p className="mb-3 text-[12px] text-muted">{t('style.levelHint')}</p>
+          <StyleEditor value={style} onChange={(patch) => setLevelStyle(depth, patch)} />
+          <button
+            className="btn mt-3 w-full justify-center"
+            onClick={() => setLevelStyle(depth, null)}
+          >
+            <RotateCcw size={14} /> {t('style.resetLevel')}
+          </button>
+        </Popover>
+      )}
+    </>
   );
 }

@@ -13,7 +13,7 @@ import { useDisplay } from '../../store/analysis';
 import { setUi, useStore } from '../../store/projectStore';
 import { TimelineBody } from '../gantt/TimelineBody';
 import { TimelineHeader } from '../gantt/TimelineHeader';
-import { HEADER_H, makeScale, ROW_H } from '../gantt/scale';
+import { HEADER_H, makeScale, ROW_H, tierFor } from '../gantt/scale';
 import { GRID_MAX, GRID_MIN, layoutColumns } from '../grid/columns';
 import { GridBody } from '../grid/GridBody';
 import { GridHeader } from '../grid/GridHeader';
@@ -26,25 +26,35 @@ export function Planner() {
   const model = useDisplay();
   const doc = useStore((s) => s.doc);
   const zoom = useStore((s) => s.ui.zoom);
+  const range = useStore((s) => s.ui.range);
   const gridWidth = useStore((s) => s.ui.gridWidth);
   const scrollRequest = useStore((s) => s.ui.scrollRequest);
   const selectedId = useStore((s) => s.ui.selectedId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasModel = model !== null;
   const [viewport, setViewport] = useState({ top: 0, left: 0, width: 1200, height: 800 });
+  const custom = zoom === 'custom' && range ? range : null;
+  // Width the custom range is fitted into (0 when a fixed zoom is active).
+  const fitWidth = custom ? Math.max(200, viewport.width - gridWidth - 16) : 0;
 
   // Scale follows the committed document so the origin does not jump while dragging.
   const scale = useMemo(() => {
     const items = doc ? Object.values(doc.items) : [];
     const today = toDay(todayISO());
-    let min = doc ? toDay(doc.project.startDate) : today;
+    let min = Math.min(doc ? toDay(doc.project.startDate) : today, today);
     let max = today;
     for (const item of items) {
       min = Math.min(min, toDay(item.start));
       max = Math.max(max, toDay(item.end));
     }
-    return makeScale(zoom, Math.min(min, today), max);
-  }, [doc, zoom]);
+    if (custom) {
+      const from = toDay(custom.from);
+      const to = Math.max(from, toDay(custom.to));
+      const ppd = fitWidth / (to - from + 1);
+      return makeScale(tierFor(ppd), Math.min(min, from), Math.max(max, to), ppd);
+    }
+    return makeScale(zoom === 'custom' ? 'week' : zoom, min, max);
+  }, [doc, zoom, custom, fitWidth]);
 
   const layout = layoutColumns(gridWidth);
 
@@ -101,13 +111,19 @@ export function Planner() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, [gridWidth, hasModel]);
+  // A custom range starts at the left edge; fixed zooms keep the day in focus.
+  const alignView = (day: number) => {
+    const el = scrollRef.current;
+    if (custom && el) el.scrollLeft = scale.x(toDay(custom.from));
+    else scrollToDay(day);
+  };
   useLayoutEffect(() => {
-    scrollToDay(centerDay.current ?? toDay(todayISO()));
+    alignView(centerDay.current ?? toDay(todayISO()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
+  }, [zoom, custom, fitWidth]);
   useLayoutEffect(() => {
     centerDay.current = null;
-    scrollToDay(toDay(todayISO()));
+    alignView(toDay(todayISO()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -176,7 +192,13 @@ export function Planner() {
             >
               <GridHeader layout={layout} personMode={!!model.person} />
             </div>
-            <TimelineHeader scale={scale} cal={model.analysis.cal} fromX={fromX} toX={toX} />
+            <TimelineHeader
+              scale={scale}
+              cal={model.analysis.cal}
+              fromX={fromX}
+              toX={toX}
+              visibleX={viewport.left}
+            />
           </div>
 
           <div className="flex">

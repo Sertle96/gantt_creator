@@ -14,7 +14,9 @@ import {
   levelName,
   orderKeyAt,
 } from '../domain/tree';
+import { hasOwnStyle, levelStyle, resolveStyle } from '../domain/styles';
 import type {
+  BarStyle,
   CalendarSettings,
   Dependency,
   Item,
@@ -109,7 +111,7 @@ export function renameItem(id: string, name: string) {
 
 export function updateItem(
   id: string,
-  patch: Partial<Pick<Item, 'name' | 'notes' | 'color' | 'status' | 'progress'>>,
+  patch: Partial<Pick<Item, 'name' | 'notes' | 'status' | 'progress'>>,
 ) {
   commit((d) => {
     const item = d.items[id];
@@ -331,14 +333,52 @@ export function setCollapsed(id: string, collapsed: boolean) {
   });
 }
 
-export function setAllCollapsed(collapsed: boolean) {
+/**
+ * Shows the outline down to `level` (1 = top level only); `null` expands everything.
+ * Parents above the level are expanded, parents on or below it collapsed.
+ */
+export function expandToLevel(level: number | null) {
   const doc = currentDoc();
   if (!doc) return;
   const tree = buildTree(doc.items);
-  const parents = Object.keys(doc.items).filter((id) => hasChildren(tree, id));
+  const target = new Map<string, boolean>();
+  for (const id of Object.keys(doc.items)) {
+    if (!hasChildren(tree, id)) continue;
+    target.set(id, level !== null && depthOf(doc.items, id) >= level - 1);
+  }
   commitSilently((d) => {
-    for (const id of parents) if (d.items[id]) d.items[id].collapsed = collapsed;
+    for (const [id, collapsed] of target) if (d.items[id]) d.items[id].collapsed = collapsed;
   });
+}
+
+/** Level the outline is currently uniformly expanded to (`null` = all, `undefined` = mixed). */
+export function currentOutlineLevel(doc: ProjectDoc): number | null | undefined {
+  const tree = buildTree(doc.items);
+  let level: number | null = null;
+  const parents = Object.keys(doc.items).filter((id) => hasChildren(tree, id));
+  // The shallowest collapsed parent defines the level; everything above must be open.
+  for (const id of parents) {
+    if (doc.items[id].collapsed) {
+      const d = depthOf(doc.items, id) + 1;
+      level = level === null ? d : Math.min(level, d);
+    }
+  }
+  for (const id of parents) {
+    const d = depthOf(doc.items, id);
+    const shouldCollapse = level !== null && d >= level - 1;
+    if (!!doc.items[id].collapsed !== shouldCollapse) {
+      // Collapsed parents hidden below the level do not matter.
+      if (level !== null && d > level - 1) continue;
+      return undefined;
+    }
+  }
+  return level;
+}
+
+export function maxOutlineDepth(doc: ProjectDoc): number {
+  let max = 0;
+  for (const id of Object.keys(doc.items)) max = Math.max(max, depthOf(doc.items, id) + 1);
+  return max;
 }
 
 // ---------------------------------------------------------------- dragging in the timeline
@@ -474,6 +514,13 @@ export function assignPerson(itemId: string, personId: string) {
   });
 }
 
+export function toggleAssignee(itemId: string, personId: string) {
+  const item = currentDoc()?.items[itemId];
+  if (!item) return;
+  if (item.assigneeIds.includes(personId)) unassignPerson(itemId, personId);
+  else assignPerson(itemId, personId);
+}
+
 export function unassignPerson(itemId: string, personId: string) {
   commit((d) => {
     const item = d.items[itemId];
@@ -503,6 +550,56 @@ export function setProjectStart(date: string) {
 export function setLevelNames(names: string[]) {
   commit((d) => {
     d.project.levelNames = names;
+  });
+}
+
+/** Swaps two levels including their styles. */
+export function moveLevel(index: number, direction: -1 | 1) {
+  commit((d) => {
+    const j = index + direction;
+    const names = d.project.levelNames;
+    if (j < 0 || j >= names.length) return;
+    [names[index], names[j]] = [names[j], names[index]];
+    const styles = d.project.levelStyles;
+    while (styles.length <= Math.max(index, j)) styles.push({});
+    [styles[index], styles[j]] = [styles[j], styles[index]];
+  });
+}
+
+export function removeLastLevel() {
+  commit((d) => {
+    const n = d.project.levelNames.length;
+    if (!n) return;
+    d.project.levelNames.pop();
+    d.project.levelStyles.splice(n - 1);
+  });
+}
+
+export function setLevelStyle(depth: number, patch: BarStyle | null) {
+  commit((d) => {
+    const styles = d.project.levelStyles;
+    while (styles.length <= depth) styles.push({});
+    styles[depth] = patch === null ? {} : { ...styles[depth], ...patch };
+  });
+}
+
+/**
+ * Changes an item's look. The first change copies the full level style into the item so it
+ * stops following later level changes; `null` resets it to the level style.
+ */
+export function setItemStyle(id: string, patch: BarStyle | null) {
+  const doc = currentDoc();
+  const item = doc?.items[id];
+  if (!doc || !item) return;
+  const depth = depthOf(doc.items, id);
+  const base = hasOwnStyle(item)
+    ? resolveStyle(doc.project, item, depth)
+    : levelStyle(doc.project, depth);
+  commit((d) => {
+    const it = d.items[id];
+    if (patch === null) delete it.style;
+    else it.style = { ...base, ...patch };
+    it.updatedAt = now();
   });
 }
 

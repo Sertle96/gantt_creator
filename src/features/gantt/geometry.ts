@@ -1,5 +1,5 @@
 import { toDay } from '../../domain/dates';
-import type { Item, ProjectDoc, Side } from '../../domain/types';
+import type { Item, Side } from '../../domain/types';
 import { ROW_H, type Scale } from './scale';
 
 export type Shape = 'task' | 'summary' | 'milestone' | 'deadline';
@@ -86,16 +86,4 @@ export function linkRoute(from: BarGeom, fromSide: Side, to: BarGeom, toSide: Si
     d: `M${x1},${y1}H${x1o}V${ym}H${x2o}V${y2}H${x2}`,
     mid: { x: (x1o + x2o) / 2, y: ym },
   };
-}
-
-/** Colour of an item: own colour, else inherited from the closest coloured ancestor. */
-export function itemColor(doc: ProjectDoc, id: string): string | undefined {
-  let cur: Item | undefined = doc.items[id];
-  const seen = new Set<string>();
-  while (cur && !seen.has(cur.id)) {
-    if (cur.color) return cur.color;
-    seen.add(cur.id);
-    cur = cur.parentId ? doc.items[cur.parentId] : undefined;
-  }
-  return undefined;
 }

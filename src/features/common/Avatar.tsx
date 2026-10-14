@@ -18,7 +18,6 @@ export function Avatar({ person, size = 22, draggable = false, ring = false, tit
         draggable
           ? (e) => {
               e.dataTransfer.setData(PERSON_MIME, person.id);
-              e.dataTransfer.setData('text/plain', person.name);
               e.dataTransfer.effectAllowed = 'copy';
             }
           : undefined

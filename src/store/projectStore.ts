@@ -1,10 +1,16 @@
 import { produce, type Draft } from 'immer';
 import { create } from 'zustand';
 import { schedule } from '../domain/scheduling';
-import type { ProjectDoc } from '../domain/types';
+import type { ISODate, ProjectDoc } from '../domain/types';
 import type { ProjectSummary } from '../persistence/repository';
 
-export type Zoom = 'day' | 'week' | 'month' | 'quarter';
+export type FixedZoom = 'day' | 'week' | 'month' | 'quarter';
+/** `custom` fits the chosen `range` into the visible timeline width. */
+export type Zoom = FixedZoom | 'custom';
+export interface DateRange {
+  from: ISODate;
+  to: ISODate;
+}
 export type PersonLayout = 'gantt' | 'agenda';
 export type View = { mode: 'plan' } | { mode: 'person'; personId: string; layout: PersonLayout };
 export type Panel = 'details' | 'team' | null;
@@ -22,6 +28,7 @@ export interface UiState {
   editingId: string | null;
   view: View;
   zoom: Zoom;
+  range: DateRange | null;
   showCritical: boolean;
   panel: Panel;
   settingsOpen: boolean;
@@ -47,7 +54,7 @@ export interface State {
 const PREFS_KEY = 'gantt-creator.prefs';
 const HISTORY_LIMIT = 100;
 
-type Prefs = Pick<UiState, 'zoom' | 'showCritical' | 'gridWidth' | 'theme'>;
+type Prefs = Pick<UiState, 'zoom' | 'range' | 'showCritical' | 'gridWidth' | 'theme'>;
 
 function loadPrefs(): Partial<Prefs> {
   try {
@@ -71,12 +78,13 @@ export const useStore = create<State>(() => ({
     selectedDepId: null,
     editingId: null,
     view: { mode: 'plan' },
-    zoom: prefs.zoom ?? 'week',
+    zoom: prefs.zoom === 'custom' && !prefs.range ? 'week' : (prefs.zoom ?? 'week'),
+    range: prefs.range ?? null,
     showCritical: prefs.showCritical ?? false,
     panel: 'details',
     settingsOpen: false,
     helpOpen: false,
-    gridWidth: prefs.gridWidth ?? 620,
+    gridWidth: prefs.gridWidth ?? 680,
     theme: prefs.theme ?? 'system',
     toast: null,
     scrollRequest: null,
@@ -88,9 +96,10 @@ const set = useStore.setState;
 
 useStore.subscribe((s, prev) => {
   if (s.ui === prev.ui) return;
-  const { zoom, showCritical, gridWidth, theme } = s.ui;
+  const { zoom, range, showCritical, gridWidth, theme } = s.ui;
+  const prefs: Prefs = { zoom, range, showCritical, gridWidth, theme };
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ zoom, showCritical, gridWidth, theme }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   } catch {
     // storage unavailable
   }

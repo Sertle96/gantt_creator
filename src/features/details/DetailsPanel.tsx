@@ -1,6 +1,16 @@
-import { AlertTriangle, ArrowLeft, ArrowRight, Link, Trash2, Unlink, X, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  Link,
+  Trash2,
+  Unlink,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ITEM_COLORS } from '../../domain/factory';
+import { levelStyle, resolveStyle } from '../../domain/styles';
 import { linkType, type Dependency, type ItemKind, type ItemStatus } from '../../domain/types';
 import {
   assignPerson,
@@ -20,7 +30,7 @@ import {
 import { analyze } from '../../store/analysis';
 import { setUi, useStore } from '../../store/projectStore';
 import { Avatar } from '../common/Avatar';
-import { levelColor } from '../grid/columns';
+import { ItemStyleEditor } from '../gantt/StylePopover';
 
 const KINDS: ItemKind[] = ['task', 'milestone', 'deadline'];
 const STATUSES: ItemStatus[] = ['open', 'active', 'done'];
@@ -52,6 +62,8 @@ export function DetailsPanel() {
   const unassigned = Object.values(doc.people).filter((p) => !item.assigneeIds.includes(p.id));
   const isPoint = !isParent && item.kind !== 'task';
   const key = `${item.id}-${item.updatedAt}`;
+  const levelColor = levelStyle(doc.project, depth).color;
+  const style = resolveStyle(doc.project, item, depth);
 
   return (
     <PanelShell title={t('details.title')}>
@@ -59,7 +71,7 @@ export function DetailsPanel() {
         <span className="font-mono text-muted">{analysis.wbs.get(item.id)}</span>
         <span
           className="rounded px-1.5 py-px font-semibold uppercase tracking-wide"
-          style={{ color: levelColor(depth), background: `${levelColor(depth)}1a` }}
+          style={{ color: levelColor, background: `${levelColor}1a` }}
         >
           {levelLabel(doc, depth)}
         </span>
@@ -249,27 +261,18 @@ export function DetailsPanel() {
         </div>
       </Field>
 
-      <Field label={t('details.color')}>
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            className={`h-6 rounded-full border px-2 text-[11px] ${
-              !item.color ? 'border-accent text-accent' : 'border-border text-muted'
-            }`}
-            onClick={() => updateItem(item.id, { color: undefined })}
-          >
-            {t('details.autoColor')}
-          </button>
-          {ITEM_COLORS.map((c) => (
-            <button
-              key={c}
-              aria-label={c}
-              className={`h-6 w-6 rounded-full ${item.color === c ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : ''}`}
-              style={{ background: c }}
-              onClick={() => updateItem(item.id, { color: c })}
-            />
-          ))}
+      <details className="group mb-3 rounded-lg border border-border">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          {t('style.title')}
+          <span className="flex items-center gap-1.5 normal-case tracking-normal">
+            <span className="h-3 w-6 rounded-sm" style={{ background: style.color }} />
+            <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
+        <div className="border-t border-border p-3">
+          <ItemStyleEditor itemId={item.id} />
         </div>
-      </Field>
+      </details>
 
       <LinkList
         title={t('details.predecessors')}

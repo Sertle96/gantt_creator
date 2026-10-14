@@ -23,9 +23,13 @@ exportieren und wieder importieren (Backup, Weitergabe).
 | Verschieben / Dauer | Balken ziehen / Balkenränder ziehen (Snap auf Arbeitstage) |
 | Abhängigkeit | Punkt am Balkenende auf einen anderen Balken ziehen (linke/rechte Hälfte = Anfang/Ende) |
 | Hart ↔ weich | Kettenglied in der Pfeilmitte anklicken; Rechtsklick für Art (FS/SS/FF/SF), Verzug, Löschen |
-| Person zuordnen | Avatar aus der Teamleiste auf Zeile oder Balken ziehen |
+| Ebenen ein-/ausklappen | Knöpfe über dem Grid: z. B. „Phase“ zeigt nur Phasen, „Alle“ klappt alles auf |
+| Termine in der Tabelle | Start, Ende und Dauer direkt in den Zellen ändern (Dauer 0 = Meilenstein) |
+| Person zuordnen | In die Zelle „Personen“ klicken und abhaken (auch neue Person anlegen) – oder Avatar auf Zeile ziehen |
+| Balkenstil | Rechtsklick auf einen Balken: Farbe, Füllung, Beschriftung – danach individuell, „Zurücksetzen“ folgt wieder der Ebene |
+| Zeitraum | „Zeitraum“ in der Toolbar: beliebiges Von–Bis oder Schnellauswahl, die Zeitleiste passt sich genau an |
 | Persönlicher Plan | „Plan von …“ in der Toolbar – eigene Aufgaben farbig, Abhängigkeiten grau, Agenda nach Wochen |
-| Ebenen benennen | Einstellungen → Ebenen (gilt global, jedes Element behält seinen Namen) |
+| Ebenen benennen und gestalten | Einstellungen → Ebenen: Name und Stil (Farbe, Füllung, Beschriftung) je Ebene |
 
 Elementarten: **Aufgabe** (Zeitraum), **Meilenstein** (ein Datum, wird von Abhängigkeiten verschoben –
 entsteht automatisch, wenn nur ein Enddatum gesetzt ist) und **Deadline** (feste Frist, wird nie
