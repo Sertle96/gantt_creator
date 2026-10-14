@@ -31,7 +31,9 @@ function hasCycle(graph: Map<string, Set<string>>): boolean {
   const state = new Map<string, 1 | 2>();
   for (const start of graph.keys()) {
     if (state.has(start)) continue;
-    const stack: Array<[string, Iterator<string>]> = [[start, (graph.get(start) ?? new Set()).values()]];
+    const stack: Array<[string, Iterator<string>]> = [
+      [start, (graph.get(start) ?? new Set()).values()],
+    ];
     state.set(start, 1);
     while (stack.length) {
       const [node, it] = stack[stack.length - 1];

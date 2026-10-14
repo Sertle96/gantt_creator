@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 246 247 251;
+  --surface: 255 255 255;
+  --surface-2: 241 243 248;
+  --border: 223 227 236;
+  --text: 22 27 45;
+  --muted: 106 114 136;
+  --accent: 79 70 229;
+  --accent-fg: 255 255 255;
+  --danger: 220 38 38;
+  --warn: 217 119 6;
+  --ok: 5 150 105;
+
+  --grid-line: rgb(var(--border) / 0.7);
+  --weekend: rgb(120 130 160 / 0.07);
+  --row-hover: rgb(var(--accent) / 0.05);
+  --row-selected: rgb(var(--accent) / 0.1);
+  --bar: #6366f1;
+  --bar-summary: #334155;
+  --link: #64748b;
+  --link-soft: #94a3b8;
+  --critical: #e11d48;
+  --today: #f43f5e;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: 15 17 26;
+  --surface: 23 26 38;
+  --surface-2: 31 35 50;
+  --border: 50 56 76;
+  --text: 230 233 242;
+  --muted: 148 156 180;
+  --accent: 129 120 255;
+  --accent-fg: 15 17 26;
+  --danger: 248 113 113;
+  --warn: 251 191 36;
+  --ok: 52 211 153;
+
+  --weekend: rgb(200 210 255 / 0.04);
+  --bar: #818cf8;
+  --bar-summary: #cbd5e1;
+  --link: #94a3b8;
+  --link-soft: #64748b;
+  --critical: #fb7185;
+  --today: #fb7185;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+/* Thin scrollbars that fit both themes */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--muted) / 0.4) transparent;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-[13px] font-medium text-text hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:hover:bg-transparent;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded-md px-3 h-8 text-[13px] font-semibold bg-accent text-accent-fg hover:opacity-90 transition-opacity;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-md w-8 h-8 text-muted hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:hover:bg-transparent;
+  }
+  .input {
+    @apply h-8 w-full rounded-md border border-border bg-surface px-2 text-[13px] text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/20;
+  }
+  .label {
+    @apply block text-[11px] font-semibold uppercase tracking-wide text-muted mb-1;
+  }
+  .seg {
+    @apply inline-flex rounded-md border border-border bg-surface p-0.5;
+  }
+  .seg > button {
+    @apply px-2 h-6 rounded text-[12px] text-muted hover:text-text;
+  }
+  .seg > button[aria-pressed='true'] {
+    @apply bg-accent text-accent-fg hover:text-accent-fg;
+  }
+  .menu {
+    @apply rounded-lg border border-border bg-surface shadow-pop py-1 text-[13px] min-w-[200px];
+  }
+  .menu-item {
+    @apply flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-2 disabled:opacity-40;
+  }
+}
+
+/* Gantt */
+.gantt-row-bg:hover {
+  fill: var(--row-hover);
+}
+
+.link-handle {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.bar-group:hover .link-handle,
+.bar-group.is-link-target .link-handle,
+.linking .bar-group:hover .link-handle {
+  opacity: 1;
+}
+
+.dep-toggle:hover circle {
+  stroke-width: 2;
+}
+
+.dep:hover path.dep-line {
+  stroke-width: 2.25;
+}

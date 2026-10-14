@@ -19,7 +19,8 @@ export class WorkCalendar {
     this.weekly = Array.from({ length: 7 }, (_, i) => set.has(i));
     this.perWeek = set.size;
     this.prefix = [0];
-    for (let k = 0; k < 7; k++) this.prefix.push(this.prefix[k] + (this.weekly[weekday(k)] ? 1 : 0));
+    for (let k = 0; k < 7; k++)
+      this.prefix.push(this.prefix[k] + (this.weekly[weekday(k)] ? 1 : 0));
     this.holidays = [...new Set(settings.holidays.map(toDay))]
       .filter((d) => this.weekly[weekday(d)])
       .sort((a, b) => a - b);

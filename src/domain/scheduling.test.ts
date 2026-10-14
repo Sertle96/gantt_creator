@@ -80,7 +80,10 @@ describe('schedule – push mode', () => {
 
   it('never moves deadlines and reports overruns', () => {
     const doc = makeDoc(
-      [item('a', '2026-01-05', '2026-01-09'), item('d', '2026-01-07', '2026-01-07', { kind: 'deadline' })],
+      [
+        item('a', '2026-01-05', '2026-01-09'),
+        item('d', '2026-01-07', '2026-01-07', { kind: 'deadline' }),
+      ],
       [link('l', 'a', 'd')],
     );
     const out = schedule(doc);

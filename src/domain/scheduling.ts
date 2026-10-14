@@ -242,7 +242,12 @@ export function deadlineViolations(
 }
 
 /** Index-space shift of an item (and its subtree) by a calendar-day drag distance. */
-export function shiftByDays(doc: ProjectDoc, id: string, deltaDays: number, now: string): ProjectDoc {
+export function shiftByDays(
+  doc: ProjectDoc,
+  id: string,
+  deltaDays: number,
+  now: string,
+): ProjectDoc {
   const item = doc.items[id];
   if (!item || deltaDays === 0) return doc;
   const cal = new WorkCalendar(doc.project.calendar);
@@ -291,6 +296,9 @@ export function resizeByDays(
   if (start === sd && end === ed) return doc;
   return {
     ...doc,
-    items: { ...doc.items, [id]: { ...item, start: toISO(start), end: toISO(end), updatedAt: now } },
+    items: {
+      ...doc.items,
+      [id]: { ...item, start: toISO(start), end: toISO(end), updatedAt: now },
+    },
   };
 }

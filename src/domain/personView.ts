@@ -73,7 +73,11 @@ export function personPlan(doc: ProjectDoc, personId: string): PersonPlan {
     .sort((a, b) => {
       const ia = doc.items[a.id];
       const ib = doc.items[b.id];
-      return ia.start.localeCompare(ib.start) || ia.end.localeCompare(ib.end) || ia.name.localeCompare(ib.name);
+      return (
+        ia.start.localeCompare(ib.start) ||
+        ia.end.localeCompare(ib.end) ||
+        ia.name.localeCompare(ib.name)
+      );
     });
 
   return {

@@ -39,7 +39,10 @@ describe('WorkCalendar', () => {
   });
 
   it('respects holidays', () => {
-    const c = new WorkCalendar({ workdays: [1, 2, 3, 4, 5], holidays: ['2026-10-19', '2026-10-17'] });
+    const c = new WorkCalendar({
+      workdays: [1, 2, 3, 4, 5],
+      holidays: ['2026-10-19', '2026-10-17'],
+    });
     expect(c.isWorkday(d('2026-10-19'))).toBe(false);
     expect(toISO(c.addWorkdays(d('2026-10-16'), 1))).toBe('2026-10-20');
     expect(c.countWorkdays(d('2026-10-12'), d('2026-10-23'))).toBe(9);

@@ -155,7 +155,10 @@ export interface SampleNode {
 }
 
 /** Sample project; links refer to node keys as `[from, to, hard]` finish-to-start. */
-export function buildSample(texts: SampleTexts, links: Array<[string, string, boolean]>): ProjectDoc {
+export function buildSample(
+  texts: SampleTexts,
+  links: Array<[string, string, boolean]>,
+): ProjectDoc {
   const cal = new WorkCalendar({ workdays: [1, 2, 3, 4, 5], holidays: [] });
   const start = toISO(cal.snapForward(toDay(todayISO()) - 14));
   let doc = createProject(texts.projectName, texts.levels, start);

@@ -124,7 +124,11 @@ function safeKeyBetween(a: string | null, b: string | null): string {
   }
 }
 
-export function levelName(levelNames: string[], depth: number, fallback: (n: number) => string): string {
+export function levelName(
+  levelNames: string[],
+  depth: number,
+  fallback: (n: number) => string,
+): string {
   const name = levelNames[depth]?.trim();
   return name || fallback(depth + 1);
 }
