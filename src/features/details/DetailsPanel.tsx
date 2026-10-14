@@ -30,6 +30,7 @@ import {
 import { analyze } from '../../store/analysis';
 import { setUi, useStore } from '../../store/projectStore';
 import { Avatar } from '../common/Avatar';
+import { legible } from '../common/color';
 import { ItemStyleEditor } from '../gantt/StylePopover';
 
 const KINDS: ItemKind[] = ['task', 'milestone', 'deadline'];
@@ -39,6 +40,7 @@ export function DetailsPanel() {
   const { t } = useTranslation();
   const doc = useStore((s) => s.doc);
   const selectedId = useStore((s) => s.ui.selectedId);
+  const dark = useStore((s) => s.ui.dark);
   const item = selectedId ? doc?.items[selectedId] : undefined;
 
   if (!doc || !item) {
@@ -62,7 +64,7 @@ export function DetailsPanel() {
   const unassigned = Object.values(doc.people).filter((p) => !item.assigneeIds.includes(p.id));
   const isPoint = !isParent && item.kind !== 'task';
   const key = `${item.id}-${item.updatedAt}`;
-  const levelColor = levelStyle(doc.project, depth).color;
+  const levelColor = legible(levelStyle(doc.project, depth).color, dark);
   const style = resolveStyle(doc.project, item, depth);
 
   return (

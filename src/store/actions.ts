@@ -99,6 +99,29 @@ export function addItem(opts: AddItemOptions = {}): string | null {
   return item.id;
 }
 
+/**
+ * Inserts a new item at an explicit tree position, optionally with a drawn date range,
+ * and starts editing its name.
+ */
+export function insertItemAt(
+  parentId: string | null,
+  index: number,
+  dates?: { start: string; end: string },
+): string | null {
+  const doc = currentDoc();
+  if (!doc) return null;
+  const siblings = childrenOf(buildTree(doc.items), parentId);
+  const depth = parentId ? depthOf(doc.items, parentId) + 1 : 0;
+  const name = t('grid.newName', { level: levelLabel(doc, depth), n: siblings.length + 1 });
+  const item = buildItem(doc, { parentId, index, name, start: dates?.start, end: dates?.end });
+  commit((d) => {
+    d.items[item.id] = item;
+    if (parentId && d.items[parentId]) d.items[parentId].collapsed = false;
+  });
+  setUi({ selectedId: item.id, selectedDepId: null, editingId: item.id });
+  return item.id;
+}
+
 export function renameItem(id: string, name: string) {
   const trimmed = name.trim();
   commit((d) => {

@@ -18,6 +18,9 @@ exportieren und wieder importieren (Backup, Weitergabe).
 | Aktion | So geht's |
 | --- | --- |
 | Element anlegen | `Enter` (Geschwister), `Strg+Enter` (Unterelement), Button „+ Element“ |
+| Einfügen per Plus | Maus auf die Linie zwischen zwei Zeilen → „+“; unterste Zeile „Phase hinzufügen“ |
+| Balken aufziehen | Im Gantt zwischen zwei Zeilen zeigt ein Vorschaubalken die Einfügestelle – ziehen legt ein neues Element mit diesem Zeitraum an |
+| An Projektbreite anpassen | Knopf links neben Tag/Woche/Monat/Quartal |
 | Ein-/Ausrücken | `Tab` / `Umschalt+Tab` – auch während der Namenseingabe; oder Zeilengriff seitlich ziehen |
 | Umsortieren | Zeilengriff links ziehen |
 | Verschieben / Dauer | Balken ziehen / Balkenränder ziehen (Snap auf Arbeitstage) |

@@ -16,6 +16,7 @@ import {
 } from '../../store/actions';
 import { setUi, useStore } from '../../store/projectStore';
 import { formatDay, formatISO, MEDIUM } from '../common/format';
+import { legible } from '../common/color';
 import { Modal } from '../common/Modal';
 import { Popover } from '../common/Popover';
 import { FillPreview, StyleEditor } from '../common/StyleEditor';
@@ -26,6 +27,7 @@ const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 export function SettingsDialog() {
   const { t } = useTranslation();
   const project = useStore((s) => s.doc?.project);
+  const dark = useStore((s) => s.ui.dark);
   const maxDepth = useStore((s) => {
     const items = s.doc?.items ?? {};
     let max = 0;
@@ -107,8 +109,8 @@ export function SettingsDialog() {
               <span
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[11px] font-bold"
                 style={{
-                  color: levelStyle(project, i).color,
-                  background: `${levelStyle(project, i).color}1a`,
+                  color: legible(levelStyle(project, i).color, dark),
+                  background: `${legible(levelStyle(project, i).color, dark)}1a`,
                 }}
               >
                 {i + 1}

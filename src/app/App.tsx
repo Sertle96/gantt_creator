@@ -9,7 +9,7 @@ import { Welcome } from '../features/projects/Welcome';
 import { HelpDialog } from '../features/settings/HelpDialog';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { Toolbar } from '../features/toolbar/Toolbar';
-import { useStore } from '../store/projectStore';
+import { setUi, useStore } from '../store/projectStore';
 import { useShortcuts } from './useShortcuts';
 
 function useTheme() {
@@ -19,6 +19,7 @@ function useTheme() {
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && media.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      setUi({ dark });
     };
     apply();
     media.addEventListener('change', apply);

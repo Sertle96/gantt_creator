@@ -35,6 +35,8 @@ export interface UiState {
   helpOpen: boolean;
   gridWidth: number;
   theme: Theme;
+  /** Resolved dark mode (theme or system preference). */
+  dark: boolean;
   toast: Toast | null;
   /** Request for the timeline to scroll a day into view; nonce makes repeats observable. */
   scrollRequest: { day: number; nonce: number } | null;
@@ -86,6 +88,7 @@ export const useStore = create<State>(() => ({
     helpOpen: false,
     gridWidth: prefs.gridWidth ?? 680,
     theme: prefs.theme ?? 'system',
+    dark: false,
     toast: null,
     scrollRequest: null,
   },

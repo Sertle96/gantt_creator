@@ -1,13 +1,23 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { levelStyle } from '../../domain/styles';
 import { ancestors } from '../../domain/tree';
-import { assignPerson, levelLabel, moveItem, select } from '../../store/actions';
+import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { assignPerson, insertItemAt, levelLabel, moveItem, select } from '../../store/actions';
 import type { DisplayModel, DisplayRow } from '../../store/analysis';
 import { useStore } from '../../store/projectStore';
+import { legible } from '../common/color';
 import { hasPerson, PERSON_MIME } from '../common/personDrag';
 import { ROW_H } from '../gantt/scale';
 import { COL_WIDTH, HANDLE_W, INDENT, type ColumnLayout } from './columns';
 import { GridRow } from './GridRow';
+import { placementAt, rootPlacement } from './insertion';
 
 interface GridBodyProps {
   model: DisplayModel;
@@ -61,12 +71,15 @@ function project(rows: DisplayRow[], dragIndex: number, rawGap: number, dx: numb
 }
 
 export function GridBody({ model, layout, rowsFrom, rowsTo, height }: GridBodyProps) {
+  const { t } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const selectedId = useStore((s) => s.ui.selectedId);
   const editingId = useStore((s) => s.ui.editingId);
   const showCritical = useStore((s) => s.ui.showCritical);
+  const dark = useStore((s) => s.ui.dark);
   const [projection, setProjection] = useState<Projection | null>(null);
   const [dropRow, setDropRow] = useState<number | null>(null);
+  const [hoverGap, setHoverGap] = useState<number | null>(null);
   const { doc, analysis, rows } = model;
   const personMode = !!model.person;
   const critical = showCritical ? analysis.critical().items : null;
@@ -105,11 +118,26 @@ export function GridBody({ model, layout, rowsFrom, rowsTo, height }: GridBodyPr
     return Math.floor((clientY - top) / ROW_H);
   };
 
+  // Hovering a row boundary reveals a "+" line to insert a new item right there.
+  const onMouseMove = (e: ReactMouseEvent) => {
+    if (personMode || projection) return;
+    const top = bodyRef.current?.getBoundingClientRect().top ?? 0;
+    const y = e.clientY - top;
+    const k = Math.round(y / ROW_H);
+    const gap = Math.abs(y - k * ROW_H) <= 6 && k >= 1 && k <= rows.length ? k : null;
+    if (gap !== hoverGap) setHoverGap(gap);
+  };
+  const insertPlacement = hoverGap !== null ? placementAt(doc, rows, hoverGap) : null;
+  const indentLeft = HANDLE_W + (layout.showWbs ? COL_WIDTH.wbs : 0) + 6;
+  const root = rootPlacement(doc);
+
   return (
     <div
       ref={bodyRef}
       className="relative"
       style={{ height }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={() => setHoverGap(null)}
       onDragOver={(e) => {
         if (!hasPerson(e)) return;
         e.preventDefault();
@@ -142,7 +170,7 @@ export function GridBody({ model, layout, rowsFrom, rowsTo, height }: GridBodyPr
             layout={layout}
             people={people}
             levelLabel={levelLabel(doc, row.depth)}
-            levelColor={levelStyle(doc.project, row.depth).color}
+            levelColor={legible(levelStyle(doc.project, row.depth).color, dark)}
             breadcrumb={
               personMode
                 ? ancestors(doc.items, row.id)
@@ -161,6 +189,38 @@ export function GridBody({ model, layout, rowsFrom, rowsTo, height }: GridBodyPr
           />
         );
       })}
+      {insertPlacement && hoverGap !== null && !projection && (
+        <button
+          className="group/insert absolute left-0 right-0 z-10 h-3 cursor-pointer"
+          style={{ top: hoverGap * ROW_H - 6 }}
+          title={t('grid.insertHere', { level: levelLabel(doc, insertPlacement.depth) })}
+          aria-label={t('grid.insertHere', { level: levelLabel(doc, insertPlacement.depth) })}
+          onClick={() => {
+            setHoverGap(null);
+            insertItemAt(insertPlacement.parentId, insertPlacement.index);
+          }}
+        >
+          <span
+            className="absolute right-2 top-[5px] h-0.5 rounded bg-accent/70"
+            style={{ left: indentLeft + insertPlacement.depth * INDENT }}
+          />
+          <span
+            className="absolute top-[-3px] flex h-[18px] w-[18px] items-center justify-center rounded-full bg-accent text-accent-fg shadow"
+            style={{ left: Math.max(2, indentLeft + insertPlacement.depth * INDENT - 22) }}
+          >
+            <Plus size={12} strokeWidth={3} />
+          </span>
+        </button>
+      )}
+      {!personMode && rows.length > 0 && (
+        <button
+          className="absolute left-0 right-0 flex items-center gap-1.5 text-[12px] text-muted hover:bg-surface-2/70 hover:text-accent"
+          style={{ top: rows.length * ROW_H, height: ROW_H, paddingLeft: indentLeft }}
+          onClick={() => insertItemAt(null, root.index)}
+        >
+          <Plus size={14} /> {t('grid.addRoot', { level: levelLabel(doc, 0) })}
+        </button>
+      )}
       {projection && (
         <div
           className="pointer-events-none absolute right-2 z-10 h-0.5 rounded bg-accent"

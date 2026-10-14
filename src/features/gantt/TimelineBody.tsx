@@ -1,9 +1,18 @@
 import { memo, useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toDay, todayISO } from '../../domain/dates';
+import { toDay, toISO, todayISO } from '../../domain/dates';
 import { hasOwnStyle, resolveStyle } from '../../domain/styles';
-import type { BarFill, Dependency, Item, LabelPosition, Side } from '../../domain/types';
+import type {
+  BarFill,
+  Dependency,
+  Item,
+  LabelPosition,
+  ProjectDoc,
+  Side,
+} from '../../domain/types';
 import {
+  insertItemAt,
+  levelLabel,
   addDependency,
   assignPerson,
   cancelDrag,
@@ -13,11 +22,13 @@ import {
   selectDependency,
   type DragKind,
 } from '../../store/actions';
-import type { DisplayModel } from '../../store/analysis';
+import type { DisplayModel, DisplayRow } from '../../store/analysis';
 import { useStore } from '../../store/projectStore';
+import { legible } from '../common/color';
 import { hasPerson, PERSON_MIME } from '../common/personDrag';
 import { DependencyLayer } from './DependencyLayer';
 import { barGeom, MILESTONE_R, type BarGeom } from './geometry';
+import { placementAt, rootPlacement } from '../grid/insertion';
 import { LinkPopover } from './LinkPopover';
 import { StylePopover } from './StylePopover';
 import { ROW_H, TIERS, ticks, type Scale } from './scale';
@@ -30,6 +41,14 @@ interface TimelineBodyProps {
   fromX: number;
   toX: number;
   height: number;
+}
+
+/** Preview / range of a bar being drawn: `gap` is the insert position, `root` the bottom lane. */
+interface Draw {
+  gap: number | 'root';
+  from: number;
+  to: number;
+  active: boolean;
 }
 
 interface LinkDrag {
@@ -60,12 +79,19 @@ export function TimelineBody({
   const selectedDepId = useStore((s) => s.ui.selectedDepId);
   const showCritical = useStore((s) => s.ui.showCritical);
   const view = useStore((s) => s.ui.view);
+  const dark = useStore((s) => s.ui.dark);
   const [linking, setLinking] = useState<LinkDrag | null>(null);
   const [dropRow, setDropRow] = useState<number | null>(null);
   const [styleMenu, setStyleMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [draw, setDraw] = useState<Draw | null>(null);
+  const drawing = useRef(false);
   const [depMenu, setDepMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const { doc, analysis, rows, rowIndex, person } = model;
+  const canDraw = !person;
+  /** Insert gap nearest to `y`; below the last row is the lane for new top-level items. */
+  const gapAt = (y: number): number | 'root' =>
+    y > rows.length * ROW_H ? 'root' : Math.max(0, Math.min(rows.length, Math.round(y / ROW_H)));
   const critical = showCritical ? analysis.critical() : null;
 
   const geomCache = new Map<string, BarGeom>();
@@ -196,10 +222,60 @@ export function TimelineBody({
       startBarDrag(e, bar.getAttribute('data-bar-id')!, kind);
       return;
     }
-    const row = Math.floor(localPoint(e).y / ROW_H);
-    select(rows[row]?.id ?? null);
-    selectDependency(null);
+    const start = localPoint(e);
+    if (!canDraw) {
+      selectAt(start.y);
+      return;
+    }
+    // Empty space: a click selects the row, a drag draws a new bar.
+    e.preventDefault();
+    const gap = gapAt(start.y);
+    const fromDay = scale.dayAt(start.x);
+    let moved = false;
+    let toDay = fromDay;
+    const onMove = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientX - e.clientX) < DRAG_THRESHOLD) return;
+      moved = true;
+      drawing.current = true;
+      toDay = scale.dayAt(localPoint(ev).x);
+      setDraw({ gap, from: fromDay, to: toDay, active: true });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      drawing.current = false;
+      setDraw(null);
+      if (!moved) {
+        selectAt(start.y);
+        return;
+      }
+      const place = gap === 'root' ? rootPlacement(doc) : placementAt(doc, rows, gap);
+      insertItemAt(place.parentId, place.index, {
+        start: toISO(Math.min(fromDay, toDay)),
+        end: toISO(Math.max(fromDay, toDay)),
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
+
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!canDraw || drawing.current || linking || e.buttons) return;
+    const target = e.target as Element;
+    if (target.closest('[data-bar-id],[data-dep-id]')) {
+      if (draw) setDraw(null);
+      return;
+    }
+    const p = localPoint(e);
+    const gap = gapAt(p.y);
+    const day = scale.dayAt(p.x);
+    if (draw?.gap !== gap || draw.from !== day) setDraw({ gap, from: day, to: day, active: false });
+  };
+
+  function selectAt(y: number) {
+    select(rows[Math.floor(y / ROW_H)]?.id ?? null);
+    selectDependency(null);
+  }
 
   const openDepMenu = useCallback((dep: Dependency, x: number, y: number) => {
     selectDependency(dep.id);
@@ -236,6 +312,7 @@ export function TimelineBody({
     else if (critical?.items.has(row.id)) style.color = 'var(--critical)';
     else if (ownColor && row.role === 'own' && !hasOwnStyle(item)) style.color = ownColor;
     else if (g.shape === 'deadline' && !hasOwnStyle(item)) style.color = 'var(--critical)';
+    style.color = legible(style.color, dark);
     const dim = !!(critical && !critical.items.has(row.id)) || isContext;
     return [{ row, item, g, style, dim }];
   });
@@ -251,6 +328,9 @@ export function TimelineBody({
         height={height}
         className={`block select-none ${linking ? 'linking' : ''}`}
         onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => !drawing.current && setDraw(null)}
+        style={{ cursor: draw ? 'crosshair' : undefined }}
         onContextMenu={(e) => {
           e.preventDefault();
           const bar = (e.target as Element).closest('[data-bar-id]');
@@ -408,6 +488,8 @@ export function TimelineBody({
           onOpenMenu={openDepMenu}
           part="toggles"
         />
+
+        {draw && <DrawPreview draw={draw} doc={doc} rows={rows} scale={scale} />}
 
         {linking && (
           <g pointerEvents="none">
@@ -652,3 +734,57 @@ const BarView = memo(function BarView({
     </g>
   );
 });
+
+interface DrawPreviewProps {
+  draw: Draw;
+  doc: ProjectDoc;
+  rows: DisplayRow[];
+  scale: Scale;
+}
+
+/** Dashed ghost bar where a new item would be inserted, labelled with its level. */
+function DrawPreview({ draw, doc, rows, scale }: DrawPreviewProps) {
+  const { t } = useTranslation();
+  const from = Math.min(draw.from, draw.to);
+  const to = Math.max(draw.from, draw.to);
+  const x1 = scale.x(from);
+  const x2 = Math.max(x1 + 6, scale.x(to + 1));
+  const lane = draw.gap === 'root';
+  const y = lane ? rows.length * ROW_H + ROW_H / 2 : (draw.gap as number) * ROW_H;
+  const h = lane ? 18 : 12;
+  const place = lane ? rootPlacement(doc) : placementAt(doc, rows, draw.gap as number);
+  const label = `+ ${levelLabel(doc, place.depth)}`;
+  return (
+    <g pointerEvents="none">
+      {!lane && (
+        <line
+          x1={0}
+          x2={scale.width}
+          y1={y}
+          y2={y}
+          stroke="rgb(var(--accent))"
+          strokeOpacity={draw.active ? 0.6 : 0.25}
+          strokeDasharray="4 4"
+        />
+      )}
+      <rect
+        x={x1}
+        y={y - h / 2}
+        width={x2 - x1}
+        height={h}
+        rx={4}
+        fill="rgb(var(--accent))"
+        fillOpacity={draw.active ? 0.3 : 0.12}
+        stroke="rgb(var(--accent))"
+        strokeDasharray={draw.active ? undefined : '4 3'}
+        strokeWidth={1.5}
+      />
+      <text x={x2 + 8} y={y + 4} fontSize={11.5} fontWeight={600} fill="rgb(var(--accent))">
+        {label}
+        {!draw.active && (
+          <tspan fontWeight={400} fill="rgb(var(--muted))">{`  ${t('grid.drawHint')}`}</tspan>
+        )}
+      </text>
+    </g>
+  );
+}

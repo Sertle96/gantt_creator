@@ -7,29 +7,28 @@ import type { Dependency, Item, ItemKind, Person, ProjectDoc, ProjectMeta, Side 
 export const newId = (): string => crypto.randomUUID();
 
 export const PERSON_COLORS = [
-  '#4f46e5',
-  '#0891b2',
-  '#059669',
-  '#d97706',
-  '#db2777',
-  '#7c3aed',
-  '#dc2626',
-  '#65a30d',
-  '#0d9488',
-  '#9333ea',
+  '#003c73',
+  '#fc4940',
+  '#1f6fb2',
+  '#0f8b8d',
+  '#e8963a',
+  '#6b4fa0',
+  '#2e8b57',
+  '#c2185b',
+  '#3f9fd6',
+  '#6c7a89',
 ];
 
 export const ITEM_COLORS = [
-  '#6366f1',
-  '#0ea5e9',
-  '#14b8a6',
-  '#22c55e',
-  '#eab308',
-  '#f97316',
-  '#ef4444',
-  '#ec4899',
-  '#a855f7',
-  '#64748b',
+  '#0c2a47',
+  '#5b8fc4',
+  '#9cc7ea',
+  '#b82c29',
+  '#f6a09b',
+  '#2e8b57',
+  '#f2c14e',
+  '#6b4fa0',
+  '#a3adb8',
 ];
 
 export const DEFAULT_TASK_DAYS = 5;
@@ -58,6 +57,10 @@ export interface NewItemInput {
   parentId: string | null;
   /** Insert after this sibling; appended at the end when omitted. */
   afterId?: string | null;
+  /** Explicit position among the siblings (wins over `afterId`). */
+  index?: number;
+  /** Explicit inclusive end date for tasks (wins over `days`). */
+  end?: string;
   name: string;
   kind?: ItemKind;
   start?: string;
@@ -70,8 +73,13 @@ export function buildItem(doc: ProjectDoc, input: NewItemInput): Item {
   const cal = new WorkCalendar(doc.project.calendar);
   const siblings = childrenOf(tree, input.parentId);
   const afterIndex = input.afterId ? siblings.findIndex((s) => s.id === input.afterId) : -1;
-  const index = afterIndex >= 0 ? afterIndex + 1 : siblings.length;
-  const after = afterIndex >= 0 ? siblings[afterIndex] : siblings[siblings.length - 1];
+  const index =
+    input.index !== undefined
+      ? Math.max(0, Math.min(input.index, siblings.length))
+      : afterIndex >= 0
+        ? afterIndex + 1
+        : siblings.length;
+  const after = index > 0 ? siblings[index - 1] : undefined;
   const parent = input.parentId ? doc.items[input.parentId] : undefined;
 
   let startDay: number;
@@ -83,7 +91,12 @@ export function buildItem(doc: ProjectDoc, input: NewItemInput): Item {
 
   const kind = input.kind ?? 'task';
   const days = input.days ?? DEFAULT_TASK_DAYS;
-  const endDay = kind === 'task' ? cal.addWorkdays(startDay, Math.max(1, days) - 1) : startDay;
+  const endDay =
+    kind !== 'task'
+      ? startDay
+      : input.end
+        ? Math.max(startDay, cal.snapBackward(toDay(input.end)))
+        : cal.addWorkdays(startDay, Math.max(1, days) - 1);
 
   return {
     id: newId(),

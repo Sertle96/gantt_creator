@@ -28,7 +28,7 @@ import {
   type FixedZoom,
 } from '../../store/projectStore';
 import { ProjectMenu } from './ProjectMenu';
-import { RangePicker } from './RangePicker';
+import { FitToProjectButton, RangePicker } from './RangePicker';
 
 const ZOOMS: FixedZoom[] = ['day', 'week', 'month', 'quarter'];
 const ZOOM_KEYS: Record<FixedZoom, string> = {
@@ -129,6 +129,7 @@ export function Toolbar() {
 
       <div className="flex-1" />
 
+      <FitToProjectButton />
       <div className="seg" role="group" aria-label={t('toolbar.zoom')}>
         {ZOOMS.map((z) => (
           <button key={z} aria-pressed={ui.zoom === z} onClick={() => setUi({ zoom: z })}>

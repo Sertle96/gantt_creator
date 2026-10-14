@@ -181,10 +181,10 @@ test('levels, table editing, people picker, bar style and period', async ({ page
   // Level colour from the project settings applies to the level's bars.
   await page.getByTitle('Einstellungen').click();
   await page.getByLabel('Darstellung 2').click();
-  await page.getByRole('button', { name: '#db2777' }).click();
+  await page.getByRole('button', { name: '#0f8b8d' }).click();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
-  await expect(bar(page, 'Analyse').locator('rect[fill="#db2777"]')).toHaveCount(1);
+  await expect(bar(page, 'Analyse').locator('rect[fill="#0f8b8d"]')).toHaveCount(1);
 
   // Custom period fits the timeline.
   await page.getByTitle('Zeitraum für die Ansicht wählen').click();
@@ -197,4 +197,50 @@ test('levels, table editing, people picker, bar style and period', async ({ page
     'aria-pressed',
     'true',
   );
+});
+
+test('create items with the plus line, the bottom row and by drawing in the Gantt', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Beispielprojekt' }).click();
+  await expect(rows(page)).toHaveCount(22);
+
+  // "+" line between a workstream and its first child inserts a new first child.
+  const stakeholder = (await row(page, 'Stakeholder').boundingBox())!;
+  await page.mouse.move(stakeholder.x + 200, stakeholder.y + 1);
+  await page.getByRole('button', { name: /hier einfügen/ }).click();
+  await page.keyboard.type('Kickoff');
+  await page.keyboard.press('Shift+Enter');
+  await expect(row(page, 'Kickoff')).toContainText('1.1.1');
+
+  // Bottom row appends a new top-level item.
+  await page.getByRole('button', { name: 'Phase hinzufügen' }).click();
+  await page.keyboard.type('Betrieb');
+  await page.keyboard.press('Shift+Enter');
+  await expect(row(page, 'Betrieb')).toContainText('4');
+
+  // Drawing right below the expanded phase "Umsetzung" creates its first child with that range.
+  const phase = (await row(page, 'Umsetzung').boundingBox())!;
+  const planner = (await page.getByTestId('planner').boundingBox())!;
+  const x = planner.x + 680 + 150;
+  const y = phase.y + phase.height + 1;
+  await page.mouse.move(x, y);
+  await expect(page.getByText('Ziehen, um einen neuen Balken anzulegen')).toBeVisible();
+  await page.mouse.down();
+  await page.mouse.move(x + 60, y, { steps: 5 });
+  await page.mouse.move(x + 15 * 9, y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.type('Gezeichnet');
+  await page.keyboard.press('Shift+Enter');
+  await expect(row(page, 'Gezeichnet')).toContainText('2.1');
+  const [start, end] = await cellDates(page, 'Gezeichnet');
+  expect(end > start).toBe(true);
+  await expect(rows(page)).toHaveCount(25);
+
+  // Fit button switches to a period covering the whole project.
+  await page.getByRole('button', { name: 'Gantt an Projektbreite anpassen' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Gantt an Projektbreite anpassen' }),
+  ).toHaveAttribute('aria-pressed', 'true');
 });

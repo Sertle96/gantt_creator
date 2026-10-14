@@ -1,7 +1,8 @@
-import { CalendarRange } from 'lucide-react';
+import { CalendarRange, UnfoldHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { dayFromParts, mondayOf, parts, toDay, toISO, todayISO } from '../../domain/dates';
+import type { Item } from '../../domain/types';
 import { setUi, useStore, type DateRange } from '../../store/projectStore';
 import { formatISO } from '../common/format';
 import { Popover } from '../common/Popover';
@@ -24,6 +25,49 @@ function presetRange(preset: Preset, projectRange: DateRange): DateRange {
   return { from: toISO(from), to: toISO(to) };
 }
 
+/** First start to last end of all items (a month from the project start when empty). */
+function projectRangeOf(
+  items: Record<string, Item> | undefined,
+  projectStart: string | undefined,
+): DateRange {
+  const list = Object.values(items ?? {});
+  if (!list.length) {
+    const from = projectStart ?? todayISO();
+    return { from, to: toISO(toDay(from) + 30) };
+  }
+  return {
+    from: list.reduce((m, i) => (i.start < m ? i.start : m), list[0].start),
+    to: list.reduce((m, i) => (i.end > m ? i.end : m), list[0].end),
+  };
+}
+
+/** Fits the whole project into the visible timeline width. */
+export function FitToProjectButton() {
+  const { t } = useTranslation();
+  const zoom = useStore((s) => s.ui.zoom);
+  const range = useStore((s) => s.ui.range);
+  const items = useStore((s) => s.doc?.items);
+  const projectStart = useStore((s) => s.doc?.project.startDate);
+  const span = projectRangeOf(items, projectStart);
+  const days = toDay(span.to) - toDay(span.from) + 1;
+  const target = {
+    from: toISO(toDay(span.from) - Math.max(1, Math.round(days * 0.02))),
+    to: toISO(toDay(span.to) + Math.max(3, Math.round(days * 0.1))),
+  };
+  const active = zoom === 'custom' && range?.from === target.from && range?.to === target.to;
+  return (
+    <button
+      className={`btn-icon ${active ? 'bg-accent/10 text-accent' : ''}`}
+      aria-pressed={active}
+      title={t('toolbar.fitProject')}
+      aria-label={t('toolbar.fitProject')}
+      onClick={() => setUi({ zoom: 'custom', range: target })}
+    >
+      <UnfoldHorizontal size={17} />
+    </button>
+  );
+}
+
 /** Lets the user pick any period; the timeline then fits exactly that period. */
 export function RangePicker() {
   const { t } = useTranslation();
@@ -35,17 +79,7 @@ export function RangePicker() {
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [draft, setDraft] = useState<DateRange | null>(null);
 
-  const projectRange = (): DateRange => {
-    const list = Object.values(items ?? {});
-    if (!list.length) {
-      const from = projectStart ?? todayISO();
-      return { from, to: toISO(toDay(from) + 30) };
-    }
-    return {
-      from: list.reduce((m, i) => (i.start < m ? i.start : m), list[0].start),
-      to: list.reduce((m, i) => (i.end > m ? i.end : m), list[0].end),
-    };
-  };
+  const projectRange = () => projectRangeOf(items, projectStart);
 
   const apply = (r: DateRange) => {
     const ordered = r.from <= r.to ? r : { from: r.to, to: r.from };

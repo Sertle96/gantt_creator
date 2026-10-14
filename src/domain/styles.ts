@@ -2,13 +2,13 @@ import type { BarFill, BarStyle, Item, LabelPosition, ProjectMeta } from './type
 
 /** Default colour per hierarchy depth (cycles for deeper levels). */
 export const LEVEL_PALETTE = [
-  '#4f46e5',
-  '#0284c7',
-  '#0d9488',
-  '#d97706',
-  '#db2777',
-  '#7c3aed',
-  '#475569',
+  '#003c73',
+  '#1f6fb2',
+  '#3f9fd6',
+  '#e8963a',
+  '#6c7a89',
+  '#0f8b8d',
+  '#8e6fc1',
 ];
 
 export const BAR_FILLS: BarFill[] = ['solid', 'soft', 'outline', 'striped'];

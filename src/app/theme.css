@@ -2,52 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Colour scheme inspired by NEONEX: navy primary rgb(0 60 115), coral accent, cool greys. */
 :root {
-  --bg: 246 247 251;
+  --bg: 244 245 247;
   --surface: 255 255 255;
-  --surface-2: 241 243 248;
-  --border: 223 227 236;
-  --text: 22 27 45;
-  --muted: 106 114 136;
-  --accent: 79 70 229;
+  --surface-2: 238 241 245;
+  --border: 220 225 231;
+  --text: 16 32 52;
+  --muted: 104 114 126;
+  --accent: 0 60 115;
   --accent-fg: 255 255 255;
-  --danger: 220 38 38;
+  --coral: 252 73 64;
+  --danger: 214 48 40;
   --warn: 217 119 6;
   --ok: 5 150 105;
 
-  --grid-line: rgb(var(--border) / 0.7);
-  --weekend: rgb(120 130 160 / 0.07);
-  --row-hover: rgb(var(--accent) / 0.05);
-  --row-selected: rgb(var(--accent) / 0.1);
-  --bar: #6366f1;
-  --bar-summary: #334155;
-  --link: #64748b;
-  --link-soft: #94a3b8;
-  --critical: #e11d48;
-  --today: #f43f5e;
+  --grid-line: rgb(var(--border) / 0.75);
+  --weekend: rgb(0 60 115 / 0.04);
+  --row-hover: rgb(var(--accent) / 0.04);
+  --row-selected: rgb(var(--accent) / 0.08);
+  --bar: #003c73;
+  --bar-summary: #0c2a47;
+  --link: #5b6b7c;
+  --link-soft: #a3adb8;
+  --critical: #fc4940;
+  --today: #fc4940;
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: 15 17 26;
-  --surface: 23 26 38;
-  --surface-2: 31 35 50;
-  --border: 50 56 76;
-  --text: 230 233 242;
-  --muted: 148 156 180;
-  --accent: 129 120 255;
-  --accent-fg: 15 17 26;
-  --danger: 248 113 113;
+  --bg: 9 18 29;
+  --surface: 14 27 42;
+  --surface-2: 22 38 56;
+  --border: 36 56 78;
+  --text: 228 235 243;
+  --muted: 145 160 177;
+  --accent: 96 157 214;
+  --accent-fg: 9 18 29;
+  --coral: 252 104 96;
+  --danger: 252 104 96;
   --warn: 251 191 36;
   --ok: 52 211 153;
 
-  --weekend: rgb(200 210 255 / 0.04);
-  --bar: #818cf8;
-  --bar-summary: #cbd5e1;
-  --link: #94a3b8;
-  --link-soft: #64748b;
-  --critical: #fb7185;
-  --today: #fb7185;
+  --weekend: rgb(150 190 230 / 0.05);
+  --bar: #609dd6;
+  --bar-summary: #c9d6e3;
+  --link: #91a0b1;
+  --link-soft: #5d6f83;
+  --critical: #fc6860;
+  --today: #fc6860;
   color-scheme: dark;
 }
 

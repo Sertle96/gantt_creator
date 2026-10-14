@@ -7,6 +7,7 @@ import {
   maxOutlineDepth,
 } from '../../store/actions';
 import { useStore } from '../../store/projectStore';
+import { legible } from '../common/color';
 import { HEADER_H, TIER_H } from '../gantt/scale';
 import { COL_WIDTH, HANDLE_W, type ColumnLayout } from './columns';
 
@@ -51,6 +52,7 @@ export function GridHeader({ layout, personMode }: { layout: ColumnLayout; perso
 function LevelBar() {
   const { t } = useTranslation();
   const doc = useStore((s) => s.doc);
+  const dark = useStore((s) => s.ui.dark);
   if (!doc) return null;
   const depth = maxOutlineDepth(doc);
   if (depth < 2) return null;
@@ -64,7 +66,7 @@ function LevelBar() {
       </span>
       {levels.map((level) => {
         const name = levelLabel(doc, level - 1);
-        const color = levelStyle(doc.project, level - 1).color;
+        const color = legible(levelStyle(doc.project, level - 1).color, dark);
         const pressed = active === level;
         return (
           <button

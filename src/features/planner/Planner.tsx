@@ -149,7 +149,9 @@ export function Planner() {
   if (!model) return null;
 
   const rowCount = model.rows.length;
-  const bodyHeight = Math.max(rowCount * ROW_H, viewport.height - HEADER_H);
+  // Plan view reserves one extra lane at the bottom for adding new top-level items.
+  const lanes = rowCount + (model.person ? 0 : 1);
+  const bodyHeight = Math.max(lanes * ROW_H, viewport.height - HEADER_H);
   const rowsFrom = Math.max(0, Math.floor(viewport.top / ROW_H) - OVERSCAN);
   const rowsTo = Math.min(rowCount, Math.ceil((viewport.top + viewport.height) / ROW_H) + OVERSCAN);
   const fromX = viewport.left - 200;
