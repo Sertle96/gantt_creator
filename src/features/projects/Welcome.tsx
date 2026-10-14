@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, Sparkles, Trash2, Upload } from 'lucide-react';
+import { FilePlus2, FileSpreadsheet, FolderOpen, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { currentLanguage, setLanguage } from '../../i18n';
 import {
@@ -7,6 +7,7 @@ import {
   newSampleProject,
   openProject,
   pickAndImport,
+  pickExcelImport,
 } from '../../store/projectActions';
 import { useStore } from '../../store/projectStore';
 import { formatISO, MEDIUM } from '../common/format';
@@ -45,6 +46,9 @@ export function Welcome() {
         </button>
         <button className="btn h-10 border border-border bg-surface px-4" onClick={pickAndImport}>
           <Upload size={16} /> {t('welcome.import')}
+        </button>
+        <button className="btn h-10 border border-border bg-surface px-4" onClick={pickExcelImport}>
+          <FileSpreadsheet size={16} /> {t('excel.import')}
         </button>
       </div>
 

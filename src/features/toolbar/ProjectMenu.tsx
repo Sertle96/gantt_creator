@@ -1,13 +1,11 @@
 import {
   ChevronDown,
-  Download,
   FilePlus2,
   FolderOpen,
   LayoutGrid,
   Pencil,
   Sparkles,
   Trash2,
-  Upload,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,11 +13,9 @@ import { renameProject } from '../../store/actions';
 import {
   closeProject,
   deleteProject,
-  exportProject,
   newProject,
   newSampleProject,
   openProject,
-  pickAndImport,
 } from '../../store/projectActions';
 import { useStore } from '../../store/projectStore';
 import { Popover } from '../common/Popover';
@@ -63,12 +59,6 @@ export function ProjectMenu() {
             })}
           >
             <Pencil size={14} /> {t('projectMenu.rename')}
-          </button>
-          <button className="menu-item" onClick={run(exportProject)}>
-            <Download size={14} /> {t('projectMenu.export')}
-          </button>
-          <button className="menu-item" onClick={run(pickAndImport)}>
-            <Upload size={14} /> {t('projectMenu.import')}
           </button>
           <div className="my-1 border-t border-border" />
           <button

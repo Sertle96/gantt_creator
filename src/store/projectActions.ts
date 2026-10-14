@@ -1,10 +1,13 @@
-import i18n from '../i18n';
+import i18n, { currentLanguage } from '../i18n';
+import { todayISO } from '../domain/dates';
 import { createProject } from '../domain/factory';
 import { schedule } from '../domain/scheduling';
 import type { ProjectDoc } from '../domain/types';
+import { materialize, type ParsedPlan } from '../excel/importRows';
 import { IndexedDbRepository } from '../persistence/indexedDbRepository';
 import {
   ImportError,
+  downloadBlob,
   downloadText,
   parseProjectDoc,
   safeFileName,
@@ -12,7 +15,7 @@ import {
 } from '../persistence/jsonTransfer';
 import { summarize, type ProjectRepository } from '../persistence/repository';
 import { buildSampleProject } from './sample';
-import { setDocWithoutHistory, setUi, showToast, useStore } from './projectStore';
+import { applyDoc, setDocWithoutHistory, setUi, showToast, useStore } from './projectStore';
 
 const LAST_KEY = 'gantt-creator.lastProject';
 const SAVE_DELAY = 400;
@@ -114,10 +117,11 @@ export function closeProject() {
   remember(null);
 }
 
+const defaultLevels = () => i18n.t('defaults.levels', { returnObjects: true }) as string[];
+
 export async function newProject(name?: string) {
   await flush();
-  const levels = i18n.t('defaults.levels', { returnObjects: true }) as string[];
-  const doc = createProject(name?.trim() || t('projectMenu.newDefault'), levels);
+  const doc = createProject(name?.trim() || t('projectMenu.newDefault'), defaultLevels());
   show(doc);
 }
 
@@ -167,4 +171,89 @@ export function pickAndImport() {
     if (file) void importProjectFile(file);
   };
   input.click();
+}
+
+// ---------------------------------------------------------------- Excel
+
+/** ExcelJS is large, so the Excel module is only loaded when it is used. */
+const loadExcel = () => import('../excel');
+
+function reportError(err: unknown) {
+  console.error('Excel failed', err);
+  showToast(String(err), 'error');
+}
+
+export async function exportExcel() {
+  const doc = useStore.getState().doc;
+  if (!doc) return;
+  try {
+    const { exportWorkbook } = await loadExcel();
+    const blob = await exportWorkbook(doc, currentLanguage());
+    downloadBlob(`${safeFileName(doc.project.name)}.xlsx`, blob);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export async function downloadExcelTemplate() {
+  const levels = useStore.getState().doc?.project.levelNames ?? defaultLevels();
+  try {
+    const { templateWorkbook } = await loadExcel();
+    downloadBlob(
+      `${t('excel.templateFile')}.xlsx`,
+      await templateWorkbook(levels, currentLanguage()),
+    );
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+/** Reads a filled template; the dialog then shows errors or asks where to import. */
+export async function readExcelImport(file: File) {
+  try {
+    const { readExcelFile } = await loadExcel();
+    setUi({ excelImport: { fileName: file.name, result: await readExcelFile(file) } });
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+export function pickExcelImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (file) void readExcelImport(file);
+  };
+  input.click();
+}
+
+export async function importExcelAsNewProject(plan: ParsedPlan, fileName: string) {
+  await flush();
+  const name = fileName.replace(/\.xlsx$/i, '').trim() || t('projectMenu.newDefault');
+  const levels = useStore.getState().doc?.project.levelNames ?? defaultLevels();
+  const firstStart = plan.nodes
+    .map((n) => n.start)
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  const { doc } = materialize(plan, createProject(name, levels, firstStart ?? todayISO()));
+  show(doc);
+  setUi({ excelImport: null });
+  showToast(t('excel.done', { count: plan.nodes.length }));
+}
+
+/** Replaces items and links of the open project as one undoable step; people are kept. */
+export function replaceProjectWithExcel(plan: ParsedPlan) {
+  const current = useStore.getState().doc;
+  if (!current) return;
+  applyDoc(materialize(plan, current).doc);
+  setUi({
+    excelImport: null,
+    selectedId: null,
+    selectedDepId: null,
+    editingId: null,
+    view: { mode: 'plan' },
+  });
+  showToast(t('excel.done', { count: plan.nodes.length }));
 }

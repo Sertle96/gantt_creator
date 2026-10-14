@@ -2,6 +2,7 @@ import { produce, type Draft } from 'immer';
 import { create } from 'zustand';
 import { schedule } from '../domain/scheduling';
 import type { ISODate, ProjectDoc } from '../domain/types';
+import type { ParseResult } from '../excel/importRows';
 import type { ProjectSummary } from '../persistence/repository';
 
 export type FixedZoom = 'day' | 'week' | 'month' | 'quarter';
@@ -22,6 +23,12 @@ export interface Toast {
   tone: 'info' | 'error';
 }
 
+/** A read Excel file waiting for the user to pick where it goes (or showing its errors). */
+export interface ExcelImport {
+  fileName: string;
+  result: ParseResult;
+}
+
 export interface UiState {
   selectedId: string | null;
   selectedDepId: string | null;
@@ -33,6 +40,7 @@ export interface UiState {
   panel: Panel;
   settingsOpen: boolean;
   helpOpen: boolean;
+  excelImport: ExcelImport | null;
   gridWidth: number;
   theme: Theme;
   /** Resolved dark mode (theme or system preference). */
@@ -86,6 +94,7 @@ export const useStore = create<State>(() => ({
     panel: 'details',
     settingsOpen: false,
     helpOpen: false,
+    excelImport: null,
     gridWidth: prefs.gridWidth ?? 680,
     theme: prefs.theme ?? 'system',
     dark: false,

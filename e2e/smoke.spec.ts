@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 
 const rows = (page: Page) => page.locator('[data-row-id]');
@@ -14,6 +15,16 @@ async function cellDates(page: Page, name: string): Promise<[string, string]> {
     await page.getByLabel(`${name}: Start`, { exact: true }).inputValue(),
     await page.getByLabel(`${name}: Ende`, { exact: true }).inputValue(),
   ];
+}
+
+async function openSettings(page: Page) {
+  await page.getByRole('button', { name: 'Weitere Optionen' }).click();
+  await page.getByRole('button', { name: 'Einstellungen' }).click();
+}
+
+async function transferMenu(page: Page, entry: string | RegExp) {
+  await page.getByRole('button', { name: 'Import / Export' }).click();
+  await page.getByRole('button', { name: entry }).click();
 }
 
 async function linkBars(page: Page, from: string, to: string) {
@@ -47,7 +58,7 @@ test('plan a project end to end', async ({ page }) => {
   await expect(row(page, 'Interviews')).toContainText('1.1.1');
 
   // Rename the top level globally.
-  await page.getByTitle('Einstellungen').click();
+  await openSettings(page);
   const levelInput = page.getByRole('dialog').locator('input[placeholder="Ebene 1"]');
   await levelInput.fill('Etappe');
   await levelInput.press('Enter');
@@ -91,7 +102,7 @@ test('plan a project end to end', async ({ page }) => {
   await expect(row(page, 'Workshop')).toContainText('EM');
 
   // Personal plan: own task plus the predecessor as greyed context.
-  await page.getByLabel('Plan von …').selectOption({ label: 'Erika Muster' });
+  await page.getByLabel('Ansicht').selectOption({ label: 'Erika Muster' });
   await expect(rows(page)).toHaveCount(2);
   await expect(page.getByText('Plan von Erika Muster')).toBeVisible();
   await page.getByRole('button', { name: 'Zurück zum Gesamtplan' }).click();
@@ -103,17 +114,15 @@ test('plan a project end to end', async ({ page }) => {
   await expect(page.locator('g.dep')).toHaveCount(1);
 
   // Export / import round trip keeps everything.
-  await page.getByRole('button', { name: 'E2E Projekt' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Exportieren (JSON)' }).click();
+  await transferMenu(page, 'Exportieren (JSON)');
   const download = await downloadPromise;
   const exported = JSON.parse(await readFile((await download.path())!, 'utf-8'));
   expect(Object.keys(exported.items)).toHaveLength(4);
   expect(exported.project.levelNames[0]).toBe('Etappe');
 
-  await page.getByRole('button', { name: 'E2E Projekt' }).click();
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Importieren (JSON)…' }).click();
+  await transferMenu(page, 'Importieren (JSON)…');
   await (await chooserPromise).setFiles((await download.path())!);
   await expect(rows(page)).toHaveCount(4);
 });
@@ -121,6 +130,7 @@ test('plan a project end to end', async ({ page }) => {
 test('undo and redo a bar move', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Beispielprojekt' }).click();
+  await page.getByTitle('Zoom und Zeitraum wählen').click();
   await page.getByRole('button', { name: 'Tag', exact: true }).click();
   await selectRow(page, 'Stakeholder');
   const before = await cellDates(page, 'Sitemap');
@@ -179,7 +189,7 @@ test('levels, table editing, people picker, bar style and period', async ({ page
   await page.keyboard.press('Escape');
 
   // Level colour from the project settings applies to the level's bars.
-  await page.getByTitle('Einstellungen').click();
+  await openSettings(page);
   await page.getByLabel('Darstellung 2').click();
   await page.getByRole('button', { name: '#0f8b8d' }).click();
   await page.keyboard.press('Escape');
@@ -187,16 +197,13 @@ test('levels, table editing, people picker, bar style and period', async ({ page
   await expect(bar(page, 'Analyse').locator('rect[fill="#0f8b8d"]')).toHaveCount(1);
 
   // Custom period fits the timeline.
-  await page.getByTitle('Zeitraum für die Ansicht wählen').click();
+  await page.getByTitle('Zoom und Zeitraum wählen').click();
   const periodMenu = page.locator('.menu');
   await periodMenu.getByLabel('Von', { exact: true }).fill('2026-11-02');
   await periodMenu.getByLabel('Bis', { exact: true }).fill('2026-11-29');
   await page.getByRole('button', { name: 'Anzeigen' }).click();
-  await expect(page.getByTitle('Zeitraum für die Ansicht wählen')).toContainText('02.11.');
-  await expect(page.getByTitle('Zeitraum für die Ansicht wählen')).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(page.getByTitle('Zoom und Zeitraum wählen')).toContainText('02.11.');
+  await expect(page.getByTitle('Zoom und Zeitraum wählen')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('create items with the plus line, the bottom row and by drawing in the Gantt', async ({
@@ -243,4 +250,83 @@ test('create items with the plus line, the bottom row and by drawing in the Gant
   await expect(
     page.getByRole('button', { name: 'Gantt an Projektbreite anpassen' }),
   ).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Excel export, template and import', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Beispielprojekt' }).click();
+  await expect(rows(page)).toHaveCount(22);
+
+  // Export: table plus bar chart, in the same layout as the template.
+  const exportPromise = page.waitForEvent('download');
+  await transferMenu(page, /Excel exportieren/);
+  const exported = await exportPromise;
+  expect(exported.suggestedFilename()).toMatch(/\.xlsx$/);
+  const exportBook = new ExcelJS.Workbook();
+  await exportBook.xlsx.readFile((await exported.path())!);
+  const plan = exportBook.getWorksheet('Plan')!;
+  expect(plan.getCell('A1').value).toBe('Nr.');
+  expect(plan.getCell('A3').value).toBe('1.1');
+  expect(plan.actualRowCount).toBe(23);
+
+  // Template, filled in like a user would.
+  const templatePromise = page.waitForEvent('download');
+  await transferMenu(page, /Excel-Vorlage herunterladen/);
+  const template = await templatePromise;
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.readFile((await template.path())!);
+  const sheet = book.getWorksheet('Plan')!;
+  sheet.getCell('B2').value = 'Phase A';
+  sheet.getCell('C3').value = 'Aufgabe 1';
+  sheet.getCell('H3').value = new Date(Date.UTC(2026, 0, 5));
+  sheet.getCell('J3').value = 3;
+  sheet.getCell('K3').value = 'Erika Muster';
+  sheet.getCell('C4').value = 'Abnahme';
+  sheet.getCell('L4').value = 'Meilenstein';
+  sheet.getCell('M4').value = '1.1';
+  // Only an end date: becomes a milestone on that date.
+  sheet.getCell('B5').value = 'Go-live';
+  sheet.getCell('I5').value = new Date(Date.UTC(2026, 0, 30));
+  const filled = testInfo.outputPath('Excel Plan.xlsx');
+  await book.xlsx.writeFile(filled);
+
+  const importFile = async (file: string) => {
+    const chooser = page.waitForEvent('filechooser');
+    await transferMenu(page, 'Excel importieren…');
+    await (await chooser).setFiles(file);
+  };
+
+  // Replace the open project, then undo it.
+  await importFile(filled);
+  const dialog = page.getByRole('dialog', { name: 'Excel-Import' });
+  await expect(dialog).toContainText('4 Elemente');
+  await expect(dialog).toContainText('1 Abhängigkeit');
+  await dialog.getByRole('button', { name: /Aktuelles Projekt ersetzen/ }).click();
+  await expect(rows(page)).toHaveCount(4);
+  // Diamond (path) instead of a bar; only the transparent hit area is a rect.
+  await expect(bar(page, 'Go-live').locator('path').first()).toHaveAttribute('d', /L/);
+  await expect(bar(page, 'Go-live').locator('rect')).toHaveCount(1);
+  await expect(row(page, 'Abnahme')).toContainText('1.2');
+  await expect(page.locator('g.dep')).toHaveCount(1);
+  await expect(row(page, 'Aufgabe 1')).toContainText('EM');
+  await page.getByRole('button', { name: 'Rückgängig (Strg+Z)' }).click();
+  await expect(rows(page)).toHaveCount(22);
+
+  // Import as a new project named after the file.
+  await importFile(filled);
+  await dialog.getByRole('button', { name: /Als neues Projekt/ }).click();
+  await expect(rows(page)).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Excel Plan' })).toBeVisible();
+
+  // Mistakes are listed with their row and nothing is imported.
+  sheet.getCell('B2').value = null;
+  const broken = testInfo.outputPath('broken.xlsx');
+  await book.xlsx.writeFile(broken);
+  await importFile(broken);
+  await expect(page.getByTestId('excel-errors')).toContainText('Zeile 3');
+  await expect(page.getByTestId('excel-errors')).toContainText(
+    'Ebene 2 ohne übergeordnete Ebene 1',
+  );
+  await dialog.getByRole('button', { name: 'Schließen' }).last().click();
+  await expect(rows(page)).toHaveCount(4);
 });

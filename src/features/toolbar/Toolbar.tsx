@@ -1,43 +1,26 @@
 import {
   CalendarDays,
   CornerDownRight,
-  Keyboard,
+  Eye,
   List,
-  Moon,
+  LocateFixed,
   PanelRight,
   Plus,
   Redo2,
-  Settings,
-  Sun,
-  SunMoon,
   Undo2,
   Users,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toDay, todayISO } from '../../domain/dates';
-import { currentLanguage, setLanguage } from '../../i18n';
 import { addItem } from '../../store/actions';
-import {
-  redo,
-  requestScroll,
-  setUi,
-  undo,
-  useStore,
-  type Theme,
-  type FixedZoom,
-} from '../../store/projectStore';
+import { redo, requestScroll, setUi, undo, useStore } from '../../store/projectStore';
+import { MoreMenu } from './MoreMenu';
 import { ProjectMenu } from './ProjectMenu';
 import { FitToProjectButton, RangePicker } from './RangePicker';
+import { TransferMenu } from './TransferMenu';
 
-const ZOOMS: FixedZoom[] = ['day', 'week', 'month', 'quarter'];
-const ZOOM_KEYS: Record<FixedZoom, string> = {
-  day: 'toolbar.zoomDay',
-  week: 'toolbar.zoomWeek',
-  month: 'toolbar.zoomMonth',
-  quarter: 'toolbar.zoomQuarter',
-};
-const NEXT_THEME: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' };
+const Divider = () => <div className="mx-1 h-5 w-px bg-border" />;
 
 export function Toolbar() {
   const { t } = useTranslation();
@@ -47,158 +30,146 @@ export function Toolbar() {
   const canRedo = useStore((s) => s.future.length > 0);
   const view = ui.view;
   const personList = Object.values(people ?? {}).sort((a, b) => a.name.localeCompare(b.name));
-  const ThemeIcon = ui.theme === 'light' ? Sun : ui.theme === 'dark' ? Moon : SunMoon;
+  const toggled = (on: boolean) => (on ? 'bg-surface-2 text-text' : '');
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-2">
       <img src="/favicon.svg" alt="" className="mx-1 h-6 w-6" />
       <ProjectMenu />
-      <div className="mx-1 h-5 w-px bg-border" />
+      <Divider />
 
       {view.mode === 'plan' && (
         <>
           <button
-            className="btn-primary"
+            className="btn-primary w-8 justify-center px-0"
             title={t('toolbar.newItemTitle')}
+            aria-label={t('toolbar.newItem')}
             onClick={() => addItem({ relativeTo: ui.selectedId })}
           >
-            <Plus size={15} /> {t('toolbar.newItem')}
+            <Plus size={17} />
           </button>
           <button
-            className="btn"
+            className="btn-icon"
             title={t('toolbar.newChildTitle')}
+            aria-label={t('toolbar.newChild')}
             disabled={!ui.selectedId}
             onClick={() => addItem({ relativeTo: ui.selectedId, asChild: true })}
           >
-            <CornerDownRight size={15} /> {t('toolbar.newChild')}
+            <CornerDownRight size={16} />
           </button>
-          <div className="mx-1 h-5 w-px bg-border" />
+          <Divider />
         </>
       )}
 
-      <div className="seg" role="group">
-        <button
-          aria-pressed={view.mode === 'plan'}
-          onClick={() => setUi({ view: { mode: 'plan' } })}
+      <label className="flex items-center gap-1.5 text-muted" title={t('toolbar.view')}>
+        <Eye size={16} />
+        <select
+          className="input h-8 w-auto max-w-[190px] py-0 text-text"
+          value={view.mode === 'person' ? view.personId : ''}
+          onChange={(e) =>
+            setUi({
+              view: e.target.value
+                ? {
+                    mode: 'person',
+                    personId: e.target.value,
+                    layout: view.mode === 'person' ? view.layout : 'gantt',
+                  }
+                : { mode: 'plan' },
+              selectedDepId: null,
+            })
+          }
+          aria-label={t('toolbar.view')}
         >
-          {t('toolbar.plan')}
-        </button>
-      </div>
-      <select
-        className="input ml-1 h-8 w-auto max-w-[180px] py-0"
-        value={view.mode === 'person' ? view.personId : ''}
-        onChange={(e) =>
-          setUi({
-            view: e.target.value
-              ? {
-                  mode: 'person',
-                  personId: e.target.value,
-                  layout: view.mode === 'person' ? view.layout : 'gantt',
-                }
-              : { mode: 'plan' },
-            selectedDepId: null,
-          })
-        }
-        aria-label={t('toolbar.personPlan')}
-      >
-        <option value="">{t('toolbar.personPlan')}</option>
-        {personList.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+          <option value="">{t('toolbar.plan')}</option>
+          {personList.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {view.mode === 'person' && (
         <div className="seg ml-1" role="group">
           <button
             aria-pressed={view.layout === 'gantt'}
             onClick={() => setUi({ view: { ...view, layout: 'gantt' } })}
             title={t('toolbar.gantt')}
+            aria-label={t('toolbar.gantt')}
           >
-            <CalendarDays size={13} className="inline" /> {t('toolbar.gantt')}
+            <CalendarDays size={14} />
           </button>
           <button
             aria-pressed={view.layout === 'agenda'}
             onClick={() => setUi({ view: { ...view, layout: 'agenda' } })}
             title={t('toolbar.agenda')}
+            aria-label={t('toolbar.agenda')}
           >
-            <List size={13} className="inline" /> {t('toolbar.agenda')}
+            <List size={14} />
           </button>
         </div>
       )}
 
       <div className="flex-1" />
 
-      <FitToProjectButton />
-      <div className="seg" role="group" aria-label={t('toolbar.zoom')}>
-        {ZOOMS.map((z) => (
-          <button key={z} aria-pressed={ui.zoom === z} onClick={() => setUi({ zoom: z })}>
-            {t(ZOOM_KEYS[z])}
-          </button>
-        ))}
-      </div>
-      <RangePicker />
-      <button className="btn" onClick={() => requestScroll(toDay(todayISO()))}>
-        {t('toolbar.today')}
-      </button>
       <button
-        className={`btn ${ui.showCritical ? 'bg-[var(--critical)]/10 text-[var(--critical)]' : ''}`}
+        className="btn-icon"
+        title={t('toolbar.today')}
+        aria-label={t('toolbar.today')}
+        onClick={() => requestScroll(toDay(todayISO()))}
+      >
+        <LocateFixed size={16} />
+      </button>
+      <FitToProjectButton />
+      <RangePicker />
+      <button
+        className={`btn-icon ${ui.showCritical ? 'bg-[var(--critical)]/10 text-[var(--critical)] hover:text-[var(--critical)]' : ''}`}
         aria-pressed={ui.showCritical}
         onClick={() => setUi({ showCritical: !ui.showCritical })}
         title={t('toolbar.critical')}
+        aria-label={t('toolbar.critical')}
       >
-        <Zap size={15} /> <span className="hidden xl:inline">{t('toolbar.critical')}</span>
+        <Zap size={16} />
       </button>
-      <div className="mx-1 h-5 w-px bg-border" />
-      <button className="btn-icon" onClick={undo} disabled={!canUndo} title={t('toolbar.undo')}>
+      <Divider />
+      <button
+        className="btn-icon"
+        onClick={undo}
+        disabled={!canUndo}
+        title={t('toolbar.undo')}
+        aria-label={t('toolbar.undo')}
+      >
         <Undo2 size={16} />
       </button>
-      <button className="btn-icon" onClick={redo} disabled={!canRedo} title={t('toolbar.redo')}>
+      <button
+        className="btn-icon"
+        onClick={redo}
+        disabled={!canRedo}
+        title={t('toolbar.redo')}
+        aria-label={t('toolbar.redo')}
+      >
         <Redo2 size={16} />
       </button>
-      <div className="mx-1 h-5 w-px bg-border" />
+      <Divider />
+      <TransferMenu />
       <button
-        className={`btn-icon ${ui.panel === 'team' ? 'bg-surface-2 text-text' : ''}`}
+        className={`btn-icon ${toggled(ui.panel === 'team')}`}
+        aria-pressed={ui.panel === 'team'}
         onClick={() => setUi({ panel: ui.panel === 'team' ? null : 'team' })}
         title={t('toolbar.team')}
+        aria-label={t('toolbar.team')}
       >
         <Users size={16} />
       </button>
       <button
-        className={`btn-icon ${ui.panel === 'details' ? 'bg-surface-2 text-text' : ''}`}
+        className={`btn-icon ${toggled(ui.panel === 'details')}`}
+        aria-pressed={ui.panel === 'details'}
         onClick={() => setUi({ panel: ui.panel === 'details' ? null : 'details' })}
         title={t('details.title')}
+        aria-label={t('details.title')}
       >
         <PanelRight size={16} />
       </button>
-      <button
-        className="btn-icon"
-        onClick={() => setUi({ settingsOpen: true })}
-        title={t('toolbar.settings')}
-      >
-        <Settings size={16} />
-      </button>
-      <button
-        className="btn-icon"
-        onClick={() => setUi({ helpOpen: true })}
-        title={t('toolbar.help')}
-      >
-        <Keyboard size={16} />
-      </button>
-      <button
-        className="btn-icon text-[11px] font-bold"
-        onClick={() => setLanguage(currentLanguage() === 'de' ? 'en' : 'de')}
-        title={t('toolbar.language')}
-      >
-        {currentLanguage().toUpperCase()}
-      </button>
-      <button
-        className="btn-icon"
-        onClick={() => setUi({ theme: NEXT_THEME[ui.theme] })}
-        title={t('toolbar.theme')}
-      >
-        <ThemeIcon size={16} />
-      </button>
+      <MoreMenu />
     </header>
   );
 }

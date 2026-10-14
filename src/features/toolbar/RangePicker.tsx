@@ -1,11 +1,19 @@
-import { CalendarRange, UnfoldHorizontal } from 'lucide-react';
+import { CalendarRange, ChevronDown, UnfoldHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { dayFromParts, mondayOf, parts, toDay, toISO, todayISO } from '../../domain/dates';
 import type { Item } from '../../domain/types';
-import { setUi, useStore, type DateRange } from '../../store/projectStore';
+import { setUi, useStore, type DateRange, type FixedZoom } from '../../store/projectStore';
 import { formatISO } from '../common/format';
 import { Popover } from '../common/Popover';
+
+const ZOOMS: FixedZoom[] = ['day', 'week', 'month', 'quarter'];
+const ZOOM_KEYS: Record<FixedZoom, string> = {
+  day: 'toolbar.zoomDay',
+  week: 'toolbar.zoomWeek',
+  month: 'toolbar.zoomMonth',
+  quarter: 'toolbar.zoomQuarter',
+};
 
 type Preset = 'project' | 'weeks2' | 'month1' | 'months3' | 'months6' | 'year1';
 const PRESETS: Preset[] = ['project', 'weeks2', 'month1', 'months3', 'months6', 'year1'];
@@ -68,7 +76,7 @@ export function FitToProjectButton() {
   );
 }
 
-/** Lets the user pick any period; the timeline then fits exactly that period. */
+/** Timeline dropdown: fixed zoom levels, or any period the timeline then fits exactly. */
 export function RangePicker() {
   const { t } = useTranslation();
   const zoom = useStore((s) => s.ui.zoom);
@@ -96,6 +104,7 @@ export function RangePicker() {
         ref={ref}
         className={`btn ${active ? 'bg-accent/10 text-accent' : ''}`}
         aria-pressed={!!active}
+        aria-haspopup="dialog"
         title={t('toolbar.rangeTitle')}
         onClick={() => {
           const r = ref.current!.getBoundingClientRect();
@@ -104,7 +113,10 @@ export function RangePicker() {
         }}
       >
         <CalendarRange size={15} />
-        {active ? `${formatISO(range.from, short)} – ${formatISO(range.to)}` : t('toolbar.range')}
+        {active
+          ? `${formatISO(range.from, short)} – ${formatISO(range.to)}`
+          : t(ZOOM_KEYS[zoom === 'custom' ? 'week' : zoom])}
+        <ChevronDown size={13} className="text-muted" />
       </button>
       {anchor && draft && (
         <Popover
@@ -113,6 +125,23 @@ export function RangePicker() {
           onClose={() => setAnchor(null)}
           className="w-[300px] p-3"
         >
+          <span className="label">{t('toolbar.zoom')}</span>
+          <div className="seg mb-3 w-full" role="group" aria-label={t('toolbar.zoom')}>
+            {ZOOMS.map((z) => (
+              <button
+                key={z}
+                className="flex-1"
+                aria-pressed={zoom === z}
+                onClick={() => {
+                  setUi({ zoom: z });
+                  setAnchor(null);
+                }}
+              >
+                {t(ZOOM_KEYS[z])}
+              </button>
+            ))}
+          </div>
+          <span className="label">{t('toolbar.range')}</span>
           <div className="mb-3 grid grid-cols-2 gap-2">
             <label>
               <span className="label">{t('toolbar.rangeFrom')}</span>

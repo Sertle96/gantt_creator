@@ -1,6 +1,7 @@
 import { AlertCircle, Info } from 'lucide-react';
 import { useEffect } from 'react';
 import { DetailsPanel } from '../features/details/DetailsPanel';
+import { ExcelImportDialog } from '../features/excel/ExcelImportDialog';
 import { TeamPanel, TeamStrip } from '../features/people/TeamPanel';
 import { AgendaView } from '../features/person/AgendaView';
 import { PersonBanner } from '../features/person/PersonBanner';
@@ -36,6 +37,7 @@ export function App() {
   const panel = useStore((s) => s.ui.panel);
   const settingsOpen = useStore((s) => s.ui.settingsOpen);
   const helpOpen = useStore((s) => s.ui.helpOpen);
+  const excelImport = useStore((s) => s.ui.excelImport !== null);
 
   if (!ready) return null;
 
@@ -56,6 +58,7 @@ export function App() {
       ) : (
         <Welcome />
       )}
+      {excelImport && <ExcelImportDialog />}
       <ToastView />
     </div>
   );

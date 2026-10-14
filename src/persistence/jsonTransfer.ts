@@ -154,7 +154,11 @@ export function serializeProjectDoc(doc: ProjectDoc): string {
 }
 
 export function downloadText(filename: string, text: string, type = 'application/json') {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+  downloadBlob(filename, new Blob([text], { type }));
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
